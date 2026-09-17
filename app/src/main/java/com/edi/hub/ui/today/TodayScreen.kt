@@ -39,7 +39,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -336,12 +341,27 @@ private fun FirstLaunch() {
         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        val outline = MaterialTheme.colorScheme.outlineVariant
+        val corner = with(LocalDensity.current) { 28.dp.toPx() }
         repeat(3) { index ->
+            // Dashed rather than filled: an outline reads as a slot waiting to be filled, where a
+            // solid block reads as a card that failed to load.
             Box(
                 Modifier
                     .fillMaxWidth(1f - index * 0.08f)
                     .height(if (index == 0) 96.dp else 56.dp)
-                    .background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.extraLarge),
+                    .drawBehind {
+                        drawRoundRect(
+                            color = outline,
+                            cornerRadius = CornerRadius(corner),
+                            style = Stroke(
+                                width = 2.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(
+                                    floatArrayOf(10.dp.toPx(), 8.dp.toPx()),
+                                ),
+                            ),
+                        )
+                    },
             )
         }
         Text("Today is empty", style = MaterialTheme.typography.titleLarge)

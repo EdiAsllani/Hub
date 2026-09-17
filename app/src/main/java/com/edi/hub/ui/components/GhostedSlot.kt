@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -132,7 +133,9 @@ fun GhostedMenuEntry(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(horizontalAlignment = Alignment.Start) {
+        // IntrinsicSize.Max so the dotted rule below sizes itself to the label rather than to the
+        // whole screen — it fills its parent's width, and here nothing else would constrain it.
+        Column(Modifier.width(IntrinsicSize.Max), horizontalAlignment = Alignment.Start) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
