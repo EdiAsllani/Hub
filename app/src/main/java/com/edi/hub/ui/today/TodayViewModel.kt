@@ -55,10 +55,14 @@ class TodayViewModel @Inject constructor(
     /** Hidden for the rest of today, in memory only — "Not now" means tomorrow, not never. */
     private val notNow = mutableSetOf<String>()
 
+    /**
+     * Re-read on every visit. Without it, resolving something from the pantry leaves its card
+     * sitting on Today: the ViewModel outlives the tab switch, so nothing else would notice.
+     */
     // ponytail: the rules are pulled on every visit rather than driven by the DAO Flows. A Flow
     // pipeline would keep Today live while it is on screen; nothing in phase 1 needs that, because
     // the only writes that matter happen on a different tab. Upgrade if it starts to feel stale.
-    private fun refresh() {
+    fun reload() {
         viewModelScope.launch {
             val insights = insightRules
                 .flatMap { rule -> rule(queries) }
@@ -105,9 +109,4 @@ class TodayViewModel @Inject constructor(
         state = state.copy(queue = state.queue.drop(1), cleared = state.cleared + 1)
     }
 
-    /**
-     * Re-read on every visit. Without it, resolving something from the pantry leaves its card
-     * sitting on Today: the ViewModel outlives the tab switch, so nothing else would notice.
-     */
-    fun reload() = refresh()
 }

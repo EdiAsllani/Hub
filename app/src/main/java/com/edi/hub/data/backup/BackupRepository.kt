@@ -18,7 +18,7 @@ import javax.inject.Singleton
 
 /** A backup either lands or it does not, and the user is told which in plain words. */
 sealed interface BackupOutcome {
-    data class Complete(val at: Instant) : BackupOutcome
+    data object Complete : BackupOutcome
 
     data class Failed(val message: String) : BackupOutcome
 }
@@ -80,9 +80,8 @@ class BackupRepository @Inject constructor(
                 temp.inputStream().use { it.copyTo(out) }
             }
 
-            val at = Instant.now()
-            prefs.lastBackupAt = at
-            BackupOutcome.Complete(at)
+            prefs.lastBackupAt = Instant.now()
+            BackupOutcome.Complete
         } catch (e: Exception) {
             BackupOutcome.Failed(e.message ?: "The backup did not finish.")
         } finally {

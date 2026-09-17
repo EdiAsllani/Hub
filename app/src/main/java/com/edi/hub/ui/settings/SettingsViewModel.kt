@@ -85,7 +85,7 @@ class SettingsViewModel @Inject constructor(
         busy = true
         viewModelScope.launch {
             message = when (val outcome = backups.backUp()) {
-                is BackupOutcome.Complete -> "Backed up."
+                BackupOutcome.Complete -> "Backed up."
                 is BackupOutcome.Failed -> outcome.message
             }
             busy = false
