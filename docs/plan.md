@@ -192,7 +192,7 @@ A backup taken from a **newer** schema version than the installed APK will make 
 
 The order is unchanged from §10 of the handover; steps 1 and 5 to 9 have been rewritten to match `design/spec.md`. Phase 1 is the shell plus pantry:
 
-1. Compose shell, Material 3, `NavigationBar`, five destinations — **Today · Pantry · Deadlines · Money · Backlog** — three of them ghosted stubs, using the treatment in `design/spec.md` §2 rather than a plain empty screen. The vault lives inside Deadlines, never as its own tab. **The order of the five is unresolved** — the design brief fixes a different one; see §8.
+1. Compose shell, Material 3, `NavigationBar`, five destinations — **Pantry · Deadlines · Today · Money · Backlog** — three of them ghosted stubs, using the treatment in `design/spec.md` §2 rather than a plain empty screen. The vault lives inside Deadlines, never as its own tab. Today sits in the centre, at the thumb's home position, and is the start destination.
 2. Room with the Gradle plugin, `exportSchema = true`, entities `Product` + `PantryItem` + `Trip`.
 3. SAF folder picker, `VACUUM INTO` backup, and restore — **round-trip proven before anything else is built on top of it**.
 4. Barcode scan via `GmsBarcodeScanning`.
@@ -226,7 +226,6 @@ Later phases, in value order: Deadlines (warranty and documents first) → Money
 
 ## 8. Open items
 
-- **Navigation order.** `docs/HANDOVER.md` §10 and §6 of this plan list Today first; the design brief fixes **Pantry · Deadlines · Today · Money · Backlog** and says not to reorder, putting Today at the thumb's home position. `design/spec.md` §7 flags this rather than deciding it, because it is a documentation inconsistency and not a design question. It needs one sentence from the owner before step 1 is written; the code is a list literal either way.
 - **`Product.defaultLocation`**, learned the same way as `defaultShelfLifeDays`, would remove a tap from every rescan. `defaultUnit` is gone with the units, and `defaultDescription` has been taken. Still **the owner's call** before the schema is frozen; adding it later is a trivial migration.
 - **The run-out hold window**, and what "Not now" means. "Got it" is settled — it writes `runOutDismissedAt`. "Not now" is described as leaving the card for tomorrow, which could be a same-day hide held in memory or a second `snoozedUntil` column. The in-memory version ships nothing and is the assumption until told otherwise.
 - **Two states have no design yet** and `design/spec.md` §5 says so: a backup that fails mid-write, and a backup file from a newer schema than the installed APK. §5 of this plan says to catch the second and show a plain message; what that message looks like is undrawn.

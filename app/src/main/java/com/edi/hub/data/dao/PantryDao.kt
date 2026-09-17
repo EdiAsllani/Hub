@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
+import com.edi.hub.data.model.Disposition
 import com.edi.hub.data.model.PantryItem
 import kotlinx.coroutines.flow.Flow
 
@@ -29,7 +30,10 @@ interface PantryDao {
     @Update
     suspend fun update(item: PantryItem)
 
-    /** Soft delete: the row stays so consumption history survives. */
-    @Query("UPDATE pantry_item SET consumedAt = :consumedAt WHERE id = :id")
-    suspend fun markConsumed(id: Long, consumedAt: Long)
+    /**
+     * Soft delete: the row stays so consumption history survives. `consumedAt` means *resolved at*,
+     * whichever way the item went, and [disposition] says which.
+     */
+    @Query("UPDATE pantry_item SET consumedAt = :resolvedAt, disposition = :disposition WHERE id = :id")
+    suspend fun resolve(id: Long, resolvedAt: Long, disposition: Disposition)
 }

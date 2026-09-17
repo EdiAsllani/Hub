@@ -3,24 +3,21 @@ package com.edi.hub.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * Placeholder palette. The chosen design option in `design/` replaces these values;
- * dynamic color from the wallpaper stays the default where the device supports it.
+ * The fixed teal scheme ships as the default; dynamic colour is offered as a setting, which is what
+ * `docs/HANDOVER.md` §4 asks for. The urgency ramp is supplied beside the scheme and never changes
+ * with it — expired has to look expired on anyone's wallpaper.
  */
-private val LightScheme = lightColorScheme()
-private val DarkScheme = darkColorScheme()
-
 @Composable
 fun HubTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
@@ -30,5 +27,12 @@ fun HubTheme(
         darkTheme -> DarkScheme
         else -> LightScheme
     }
-    MaterialTheme(colorScheme = colorScheme, content = content)
+    CompositionLocalProvider(LocalUrgencyRamp provides if (darkTheme) DarkRamp else LightRamp) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = HubTypography,
+            shapes = HubShapes,
+            content = content,
+        )
+    }
 }

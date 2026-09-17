@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "93da2e79bdc834c0bb02b51fcdac9977",
+    "identityHash": "4dd65737cd8cdc5f3b0fa65648a23a8e",
     "entities": [
       {
         "tableName": "product",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`barcode` TEXT NOT NULL, `name` TEXT NOT NULL, `brand` TEXT, `category` TEXT, `defaultShelfLifeDays` INTEGER, `imageUrl` TEXT, `source` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`barcode`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`barcode` TEXT NOT NULL, `name` TEXT NOT NULL, `brand` TEXT, `category` TEXT, `defaultShelfLifeDays` INTEGER, `defaultDescription` TEXT, `imageUrl` TEXT, `runOutDismissedAt` INTEGER, `source` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`barcode`))",
         "fields": [
           {
             "fieldPath": "barcode",
@@ -36,9 +36,19 @@
             "affinity": "INTEGER"
           },
           {
+            "fieldPath": "defaultDescription",
+            "columnName": "defaultDescription",
+            "affinity": "TEXT"
+          },
+          {
             "fieldPath": "imageUrl",
             "columnName": "imageUrl",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "runOutDismissedAt",
+            "columnName": "runOutDismissedAt",
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "source",
@@ -62,7 +72,7 @@
       },
       {
         "tableName": "pantry_item",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `barcode` TEXT, `name` TEXT NOT NULL, `quantity` REAL NOT NULL, `unit` TEXT NOT NULL, `location` TEXT NOT NULL, `addedAt` INTEGER NOT NULL, `expiresOn` INTEGER, `openedAt` INTEGER, `consumedAt` INTEGER, `tripId` INTEGER, FOREIGN KEY(`tripId`) REFERENCES `trip`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `barcode` TEXT, `name` TEXT NOT NULL, `brand` TEXT, `description` TEXT, `location` TEXT NOT NULL, `addedAt` INTEGER NOT NULL, `expiresOn` INTEGER, `openedAt` INTEGER, `consumedAt` INTEGER, `disposition` TEXT, `tripId` INTEGER, FOREIGN KEY(`tripId`) REFERENCES `trip`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
         "fields": [
           {
             "fieldPath": "id",
@@ -82,16 +92,14 @@
             "notNull": true
           },
           {
-            "fieldPath": "quantity",
-            "columnName": "quantity",
-            "affinity": "REAL",
-            "notNull": true
+            "fieldPath": "brand",
+            "columnName": "brand",
+            "affinity": "TEXT"
           },
           {
-            "fieldPath": "unit",
-            "columnName": "unit",
-            "affinity": "TEXT",
-            "notNull": true
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "location",
@@ -119,6 +127,11 @@
             "fieldPath": "consumedAt",
             "columnName": "consumedAt",
             "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "disposition",
+            "columnName": "disposition",
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "tripId",
@@ -216,7 +229,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '93da2e79bdc834c0bb02b51fcdac9977')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4dd65737cd8cdc5f3b0fa65648a23a8e')"
     ]
   }
 }

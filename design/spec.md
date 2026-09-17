@@ -270,12 +270,11 @@ ambiguous.
 `PantryUnit` is never created. `plan.md` §4's note about naming it to avoid shadowing `kotlin.Unit`
 is moot.
 
-### Still unresolved
+### Navigation order, settled
 
-**Navigation order.** `HANDOVER.md` §10 and `plan.md` §6 list Today first; the design brief §3 fixes
-Pantry · Deadlines · Today · Money · Backlog and says not to reorder. The brief wins on scope, and it
-puts Today at the thumb's home position. Flagged rather than decided, since it is a documentation
-inconsistency rather than a design question.
+The brief's order stands: **Pantry · Deadlines · Today · Money · Backlog**, Today centred at the
+thumb's home position and the start destination. `HANDOVER.md` §10 lists Today first; that is a
+documentation artefact, not a second decision, and `plan.md` §6 has been corrected to match.
 
 ---
 
