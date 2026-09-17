@@ -6,29 +6,67 @@ Hub is built on the idea that the whole app is only three primitives: a **due-da
 
 ## Status
 
-**Phase 1 — in progress.** The project scaffold, database layer and navigation shell are in place. The pantry and dashboard screens are stubs while the visual design is chosen (see [`docs/design-prompt.md`](docs/design-prompt.md) and the `design/` folder).
+**Phase 1 is written and not yet lived on.** The pantry, the capture flow, the Today dashboard and
+the backup and restore path are all in place and the release APK builds. None of it has run on a
+real phone yet — see *What is not there* below. Sideloading it and using it for two weeks is the
+next thing that happens, before a second tab gets written.
 
 ### What exists today
 
-- **App shell** — Compose, Material 3, edge-to-edge, dynamic colour, predictive back.
-- **Navigation bar** with five destinations in a fixed order: `Pantry · Deadlines · Today · Money · Backlog`. Today sits in the centre and is the start destination; Pantry is at the far left. The other three are visible but disabled, and answer a tap with a "coming soon" message.
-- **Database** — Room, schema version 1, with the three pantry-phase tables:
-  - `Product` — the learned product cache, keyed by barcode. Holds `defaultShelfLifeDays`, which is what lets a rescan pre-fill the expiry date.
-  - `PantryItem` — what is actually in the kitchen. Soft-deleted on consumption so the history survives.
-  - `Trip` — one shopping trip, so prices are entered once rather than per item.
-- **Dependency injection** with Hilt, and an instrumented test covering the date converters and the soft-delete behaviour.
+- **App shell** — Compose, Material 3, edge-to-edge, predictive back. Five destinations in a fixed
+  order: `Pantry · Deadlines · Today · Money · Backlog`, with Today centred and the start
+  destination. The three that are not built are visible but ghosted: 38% emphasis, a thinner icon
+  and a dotted underline where a live tab would grow an indicator. Tapping one answers with a
+  snackbar, and TalkBack reads it as dimmed rather than skipping it.
+- **The look** — a fixed Material 3 scheme seeded from a deep teal, with a plum tertiary reserved for
+  the throw-away gesture. Dynamic colour from the wallpaper is a setting and is off by default.
+  Gabarito and Figtree are bundled rather than fetched, and every count and days-left number is set
+  in tabular figures.
+- **Pantry** — location tabs over swipeable cards, with counts, urgency filters and a sort control.
+  Two boxes of the same thing are two rows with two honest dates, shown as one `×2` card carrying
+  the sooner one. Swipe right marks it consumed, swipe left marks it binned; both arm at 40%, commit
+  with a haptic, and give you four seconds of undo instead of a confirmation dialog. Swiping a
+  counted card counts the badge down and rewrites the date in place — only the last one collapses.
+- **Capture** — scan a barcode and Hub branches three ways. Something already on a shelf stops and
+  waits for a tap, and that tap adds another box and finishes: three taps from the button, no date
+  step. A hit on something new shows what it found and moves on by itself. A miss or a two-second
+  timeout moves on too, because the naming step exists on every path.
+- **Learning** — correct the date once and Hub offers it the next time you scan the same barcode.
+  Only a correction teaches it anything; accepting what it offered writes nothing.
+- **Item detail** — reached through a shared-element transition on the name and the urgency chip.
+  It lists both entries of a `×2` under one card with the earlier one marked "goes first", and it is
+  the only screen that explains the count model.
+- **Today** — one insight card at a time with a counter and a peek of the next, over two rules:
+  something is about to go off, or you have finished the last of something. Clearing the queue is a
+  visible event and the empty state is a designed screen.
+- **Backup and restore** — pick a folder once through the Storage Access Framework and Hub writes
+  `hub.db` into it, overwriting in place. Restoring validates the whole file — header, schema
+  version and `PRAGMA quick_check` — before touching anything, and renames your current database
+  aside rather than deleting it.
+- **A daily summary at 08:00**, off until you switch it on, which is also when Hub asks for
+  permission to post it. It is the only notification the app sends.
+- **Database** — Room, schema version 1, with `Product`, `PantryItem` and `Trip`. There is no
+  quantity column and no unit: a free-text description typed off the pack replaces both, and Hub
+  never parses, converts or sums it.
 
-Expiry dates are stored as epoch days (`LocalDate`), not instants, so "expires in 2 days" does not shift across midnight or a DST boundary. Money, when it arrives, is stored as a `Long` in minor units.
+Expiry dates are stored as epoch days (`LocalDate`), not instants, so "expires in 2 days" does not
+shift across midnight or a DST boundary. Money, when it arrives, is stored as a `Long` in minor
+units.
 
-### The pantry feature, once the design lands
+### What is not there
 
-Scan a barcode, look the product up, correct the expiry date once, and every later scan of that barcode pre-fills it. A lookup miss is a normal path — one field asking what the thing is — and the answer is cached locally forever. After a few weeks of shopping, the local cache beats any public database for this household's actual products.
+- Deadlines, Money and Backlog are ghosted tabs, and the FAB menu's six reserved entries are ghosted
+  the same way. Neither is a stub screen; they are visibly not built yet.
+- Nothing has run on a real device yet. The instrumented tests compile and are written against a
+  real database, but they have not been executed, and the barcode scanner, the notification and the
+  SAF round trip need a phone to be believed.
 
 ## Next up
 
 In value order. Each one is a schema migration on top of what exists now — nothing here is scaffolded in advance.
 
-1. **Finish phase 1** — pantry list with urgency filters, the scan and capture flow, the dashboard's first two insight rules (expiring soon, low stock), a SAF backup and restore round-trip, and a daily summary notification.
+1. **Live on it for two weeks.** The largest risk to this project is five half-finished tabs instead
+   of one that gets used, so the next thing is not a feature.
 2. **Deadlines** — warranties, documents, upkeep, bills, vehicles and lent items, all one table with a `kind` and an optional repeat interval.
 3. **Money** — expenses, income and debts, plus per-trip receipt totals.
 4. **Comparative insights** — spending deltas and savings trends. These stay silent until there are two months of data, which is correct, not a bug.
@@ -87,4 +125,6 @@ keyPassword=…
 
 - `fallbackToDestructiveMigration()` is never used. Every schema change ships a migration, and the exported schemas in `app/schemas/` are committed.
 - Urgency is never communicated by colour alone — every urgency chip carries an icon and a text label too.
-- Compose and AndroidX are held one release behind the latest, because the newest versions require `compileSdk 37` and that platform is not published yet. Bump both together when it is.
+- There are no quantities, no units and no thresholds anywhere in the app. `design/spec.md` §7 says why.
+- Compose and AndroidX are held one release behind the latest, because the newest versions require `compileSdk 37` and that platform is not published yet. That also keeps Material 3 Expressive components such as `FloatingActionButtonMenu` out of reach; the FAB menu is hand-built in the meantime. Bump them together when the platform lands.
+- The two bundled typefaces are under the SIL Open Font License. See [`NOTICE.md`](NOTICE.md).
