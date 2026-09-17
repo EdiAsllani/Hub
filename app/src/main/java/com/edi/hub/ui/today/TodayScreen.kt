@@ -36,6 +36,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -64,6 +65,7 @@ fun TodayScreen(
     modifier: Modifier = Modifier,
     viewModel: TodayViewModel = hiltViewModel(),
 ) {
+    LaunchedEffect(Unit) { viewModel.reload() }
     TodayContent(
         state = viewModel.state,
         onResolve = viewModel::resolve,
@@ -90,7 +92,9 @@ fun TodayContent(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         when {
-            state.total == 0 -> FirstLaunch()
+            // An empty queue is not an empty kitchen. Somebody with eight things and nothing due
+            // today has cleared the board, not failed to start.
+            state.pantryEmpty && state.current == null -> FirstLaunch()
             state.current == null -> Cleared(state)
             else -> {
                 Counter(position = state.cleared + 1, total = state.total)
@@ -311,7 +315,11 @@ private fun Cleared(state: TodayUiState) {
             }
             Text("Nothing needs you today", style = MaterialTheme.typography.titleLarge)
             Text(
-                "${state.cleared} cleared · nothing goes off this week",
+                text = if (state.cleared > 0) {
+                    "${state.cleared} cleared · nothing goes off this week"
+                } else {
+                    "Nothing goes off this week"
+                },
                 style = MaterialTheme.typography.bodyMedium.numeric(),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -386,6 +394,7 @@ private fun ExpiryCardPreview() = Board(
     TodayUiState(
         queue = listOf(Insight.ExpiringSoon(sampleMilk), Insight.RanOut(sampleEggs)),
         loaded = true,
+        pantryEmpty = false,
         today = TODAY,
     ),
 )
@@ -397,13 +406,15 @@ private fun RunOutCardPreview() = Board(
         queue = listOf(Insight.RanOut(sampleEggs)),
         cleared = 2,
         loaded = true,
+        pantryEmpty = false,
         today = TODAY,
     ),
 )
 
 @Preview(name = "Today, queue cleared", showBackground = true, heightDp = 720)
 @Composable
-private fun ClearedPreview() = Board(TodayUiState(cleared = 3, loaded = true, today = TODAY))
+private fun ClearedPreview() =
+    Board(TodayUiState(cleared = 3, loaded = true, pantryEmpty = false, today = TODAY))
 
 @Preview(name = "Today, first launch", showBackground = true, heightDp = 720)
 @Composable

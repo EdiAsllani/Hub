@@ -196,7 +196,15 @@ fun HubApp() {
                 composable<CaptureIdentifyRoute> { entry ->
                     CaptureIdentifyScreen(
                         viewModel = entry.captureViewModel(navController),
-                        onNameIt = { navController.navigate(CaptureNameRoute) },
+                        // Step 1 advances on its own on both of these paths, so it was never a
+                        // decision the user could go back to. Leaving it on the stack would put
+                        // back into a loop: return to step 1, the effect fires again, forward again.
+                        onNameIt = {
+                            navController.navigate(CaptureNameRoute) {
+                                popUpTo(CaptureIdentifyRoute) { inclusive = true }
+                            }
+                        },
+                        onAbandon = { navController.popBackStack(CaptureGraph, inclusive = true) },
                         onFinish = { saved ->
                             recentlyAdded.record(saved)
                             navController.popBackStack(CaptureGraph, inclusive = true)

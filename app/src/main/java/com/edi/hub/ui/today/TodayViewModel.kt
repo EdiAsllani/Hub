@@ -14,6 +14,7 @@ import com.edi.hub.domain.Insight
 import com.edi.hub.domain.Queries
 import com.edi.hub.domain.insightRules
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -23,6 +24,8 @@ data class TodayUiState(
     val queue: List<Insight> = emptyList(),
     val cleared: Int = 0,
     val loaded: Boolean = false,
+    /** Whether the kitchen itself is empty, which is a different screen from an empty queue. */
+    val pantryEmpty: Boolean = true,
     val today: LocalDate = LocalDate.now(),
 ) {
     val current: Insight? get() = queue.firstOrNull()
@@ -52,16 +55,20 @@ class TodayViewModel @Inject constructor(
     /** Hidden for the rest of today, in memory only — "Not now" means tomorrow, not never. */
     private val notNow = mutableSetOf<String>()
 
-    init {
-        refresh()
-    }
-
+    // ponytail: the rules are pulled on every visit rather than driven by the DAO Flows. A Flow
+    // pipeline would keep Today live while it is on screen; nothing in phase 1 needs that, because
+    // the only writes that matter happen on a different tab. Upgrade if it starts to feel stale.
     private fun refresh() {
         viewModelScope.launch {
             val insights = insightRules
                 .flatMap { rule -> rule(queries) }
                 .filterNot { it.id in notNow }
-            state = state.copy(queue = insights, loaded = true)
+            state = state.copy(
+                queue = insights,
+                pantryEmpty = pantry.observeActive().first().isEmpty(),
+                cleared = 0,
+                loaded = true,
+            )
         }
     }
 
@@ -98,6 +105,9 @@ class TodayViewModel @Inject constructor(
         state = state.copy(queue = state.queue.drop(1), cleared = state.cleared + 1)
     }
 
-    /** Keeps Today honest when something was resolved from the pantry instead. */
+    /**
+     * Re-read on every visit. Without it, resolving something from the pantry leaves its card
+     * sitting on Today: the ViewModel outlives the tab switch, so nothing else would notice.
+     */
     fun reload() = refresh()
 }

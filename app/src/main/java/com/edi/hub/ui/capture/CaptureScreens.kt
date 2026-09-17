@@ -58,6 +58,7 @@ fun CaptureIdentifyScreen(
     viewModel: CaptureViewModel,
     onNameIt: () -> Unit,
     onFinish: (Saved) -> Unit,
+    onAbandon: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -66,9 +67,13 @@ fun CaptureIdentifyScreen(
     LaunchedEffect(Unit) {
         if (viewModel.identified is Identified.Scanning) {
             val barcode = scanBarcode(context)
-            haptics.performHapticFeedback(
-                if (barcode == null) HapticFeedbackType.Reject else HapticFeedbackType.Confirm,
-            )
+            if (barcode == null) {
+                // Backed out of the scanner. That is a no, not a failed read, so there is no reject
+                // haptic and nothing to name — capture closes.
+                onAbandon()
+                return@LaunchedEffect
+            }
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
             viewModel.identify(barcode)
         }
     }
