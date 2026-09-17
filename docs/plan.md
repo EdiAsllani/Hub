@@ -2,7 +2,7 @@
 
 Companion to `HANDOVER.md`. That document settles *what* the app is and *why*; this one settles *how* it gets built: stack, schema, storage mechanics, and the order of work. Where the two disagree, `HANDOVER.md` wins on product decisions and this document wins on implementation detail.
 
-`design/spec.md` is the third document, and it outranks both on the five owner decisions recorded in its §7: no quantity tracking, count by scan, one date per scan, run-out in place of low stock, and the `disposition` column. Those points are settled, and this plan has been rewritten to match them rather than to reconcile them. The design itself lives as artboards on the Design canvas linked from that spec; §1 (foundations), §6 (motion) and §8 (sample data) there are the reference for anything visual, and are deliberately not restated here.
+`design/spec.md` is the third document, and it outranks both on the five owner decisions recorded in its §7: no quantity tracking, count by scan, one date per scan, run-out in place of low stock, and the `disposition` column. Those points are settled, and this plan has been rewritten to match them rather than to reconcile them. The design itself lives as artboards on a Design canvas the owner holds the link to; §1 (foundations), §6 (motion) and §8 (sample data) there are the reference for anything visual, and are deliberately not restated here.
 
 ---
 
