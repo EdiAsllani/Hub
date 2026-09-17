@@ -33,6 +33,12 @@ import kotlinx.serialization.Serializable
 @Serializable object CaptureDateRoute
 
 /**
+ * One card's entries. The location travels as a string because the group key alone is ambiguous —
+ * the same product on two shelves is two cards.
+ */
+@Serializable data class ItemDetailRoute(val location: String, val groupKey: String)
+
+/**
  * Bar order is fixed: Pantry at the far left, Today in the centre at the thumb's home position.
  * Deadlines, Money and Backlog are shown but not built yet, so the app is visibly growing into
  * them rather than hiding them. [route] is null while that is the case.

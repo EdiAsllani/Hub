@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material3.Card
@@ -42,7 +43,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edi.hub.data.dao.PantryCard
 import com.edi.hub.data.model.Disposition
 import com.edi.hub.data.model.PantryLocation
+import com.edi.hub.ui.chipKey
 import com.edi.hub.ui.components.UrgencyChip
+import com.edi.hub.ui.nameKey
+import com.edi.hub.ui.sharedElement
 import com.edi.hub.ui.theme.numeric
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -50,6 +54,7 @@ import java.time.LocalDate
 @Composable
 fun PantryScreen(
     snackbarHostState: SnackbarHostState,
+    onOpen: (PantryCard) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: PantryViewModel = hiltViewModel(),
 ) {
@@ -77,6 +82,7 @@ fun PantryScreen(
                 }
             }
         },
+        onOpen = onOpen,
         modifier = modifier,
     )
 }
@@ -90,6 +96,7 @@ fun PantryContent(
     onSort: (PantrySort) -> Unit,
     modifier: Modifier = Modifier,
     onResolve: (PantryCard, Disposition) -> Unit = { _, _ -> },
+    onOpen: (PantryCard) -> Unit = {},
 ) {
     Column(modifier.fillMaxSize()) {
         // The tabs stay on every state: first launch is where the three shelves are introduced,
@@ -120,7 +127,7 @@ fun PantryContent(
                         onResolve = { onResolve(card, it) },
                         modifier = Modifier.animateItem(),
                     ) {
-                        PantryCardRow(card, state.today)
+                        PantryCardRow(card, state.today, Modifier.clickable { onOpen(card) })
                     }
                 }
             }
@@ -204,6 +211,7 @@ private fun PantryCardRow(card: PantryCard, today: LocalDate, modifier: Modifier
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.sharedElement(nameKey(card.groupKey)),
                     )
                     // Beside the name, because that is where the eye already is — and it counts
                     // down in place rather than the row collapsing, which is what tells the user
@@ -236,7 +244,7 @@ private fun PantryCardRow(card: PantryCard, today: LocalDate, modifier: Modifier
                 transitionSpec = { rewriteInPlace },
                 label = "cardDate",
             ) { expiresOn ->
-                UrgencyChip(expiresOn, today = today)
+                UrgencyChip(expiresOn, today = today, modifier = Modifier.sharedElement(chipKey(card.groupKey)))
             }
         }
     }
