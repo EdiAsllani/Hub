@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.edi.hub.data.dao.PantryCard
 import com.edi.hub.data.dao.PantryDao
+import com.edi.hub.data.model.Disposition
 import com.edi.hub.data.model.PantryLocation
 import com.edi.hub.ui.theme.Urgency
 import com.edi.hub.ui.theme.urgencyOf
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -32,6 +34,9 @@ enum class PantrySort(val label: String) { BY_DATE("By date"), BY_NAME("By name"
  * would answer none of them well. `design/spec.md` §5.
  */
 enum class PantryEmptiness { NONE, FIRST_LAUNCH, EMPTY_LOCATION, FILTER_MATCHES_NOTHING }
+
+/** What the undo snackbar needs to put the entry back. */
+data class Resolved(val id: Long, val name: String, val disposition: Disposition)
 
 data class PantryUiState(
     val location: PantryLocation = PantryLocation.FRIDGE,
@@ -94,6 +99,22 @@ class PantryViewModel @Inject constructor(
 
     fun apply(sort: PantrySort) {
         this.sort.value = sort
+    }
+
+    /**
+     * Resolves one entry of a card and hands back what is needed to undo it. Within a group it takes
+     * the row with the earliest date, which is the date the card was showing — that is the property
+     * the whole count model rests on.
+     */
+    fun resolve(card: PantryCard, disposition: Disposition, onResolved: (Resolved) -> Unit) {
+        viewModelScope.launch {
+            val id = pantry.resolveNext(card.location, card.groupKey, disposition) ?: return@launch
+            onResolved(Resolved(id, card.name, disposition))
+        }
+    }
+
+    fun undo(resolved: Resolved) {
+        viewModelScope.launch { pantry.unresolve(resolved.id) }
     }
 }
 

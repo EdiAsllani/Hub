@@ -1,6 +1,11 @@
 package com.edi.hub.ui.pantry
 
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,12 +22,16 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -31,22 +40,43 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edi.hub.data.dao.PantryCard
+import com.edi.hub.data.model.Disposition
 import com.edi.hub.data.model.PantryLocation
 import com.edi.hub.ui.components.UrgencyChip
 import com.edi.hub.ui.theme.numeric
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 @Composable
 fun PantryScreen(
+    snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
     viewModel: PantryViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
     PantryContent(
         state = state,
         onLocation = viewModel::show,
         onFilter = viewModel::apply,
         onSort = viewModel::apply,
+        onResolve = { card, disposition ->
+            viewModel.resolve(card, disposition) { resolved ->
+                scope.launch {
+                    // ponytail: a second swipe inside the four seconds replaces this snackbar and
+                    // the first undo is lost. A queue of pending undos is the fix if that bites.
+                    val result = snackbarHostState.showSnackbar(
+                        message = when (resolved.disposition) {
+                            Disposition.CONSUMED -> "${resolved.name} used"
+                            Disposition.DISCARDED -> "${resolved.name} binned"
+                        },
+                        actionLabel = "Undo",
+                        duration = SnackbarDuration.Short,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) viewModel.undo(resolved)
+                }
+            }
+        },
         modifier = modifier,
     )
 }
@@ -59,6 +89,7 @@ fun PantryContent(
     onFilter: (PantryFilter) -> Unit,
     onSort: (PantrySort) -> Unit,
     modifier: Modifier = Modifier,
+    onResolve: (PantryCard, Disposition) -> Unit = { _, _ -> },
 ) {
     Column(modifier.fillMaxSize()) {
         // The tabs stay on every state: first launch is where the three shelves are introduced,
@@ -84,7 +115,13 @@ fun PantryContent(
                 // Keyed on the group, not the row id: a ×n card rewrites itself in place when one
                 // entry goes, and keying on the row would remount it instead.
                 items(state.cards, key = PantryCard::groupKey) { card ->
-                    PantryCardRow(card, state.today, Modifier.animateItem())
+                    SwipeToResolve(
+                        card = card,
+                        onResolve = { onResolve(card, it) },
+                        modifier = Modifier.animateItem(),
+                    ) {
+                        PantryCardRow(card, state.today)
+                    }
                 }
             }
         }
@@ -168,14 +205,21 @@ private fun PantryCardRow(card: PantryCard, today: LocalDate, modifier: Modifier
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    // Beside the name, because that is where the eye already is.
-                    if (card.entryCount > 1) {
-                        Text(
-                            text = "×${card.entryCount}",
-                            style = MaterialTheme.typography.titleMedium.numeric(),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.animateContentSize(),
-                        )
+                    // Beside the name, because that is where the eye already is — and it counts
+                    // down in place rather than the row collapsing, which is what tells the user
+                    // one box went and another is still here.
+                    AnimatedContent(
+                        targetState = card.entryCount,
+                        transitionSpec = { rewriteInPlace },
+                        label = "countBadge",
+                    ) { count ->
+                        if (count > 1) {
+                            Text(
+                                text = "×$count",
+                                style = MaterialTheme.typography.titleMedium.numeric(),
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                     }
                 }
                 val meta = listOfNotNull(card.brand, card.description, card.location.label)
@@ -187,7 +231,13 @@ private fun PantryCardRow(card: PantryCard, today: LocalDate, modifier: Modifier
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            UrgencyChip(card.expiresOn, today = today)
+            AnimatedContent(
+                targetState = card.expiresOn,
+                transitionSpec = { rewriteInPlace },
+                label = "cardDate",
+            ) { expiresOn ->
+                UrgencyChip(expiresOn, today = today)
+            }
         }
     }
 }
@@ -246,6 +296,10 @@ private fun EmptyBoard(
         }
     }
 }
+
+/** 300 ms standard: the card rewrites itself rather than being replaced. `design/spec.md` §6. */
+private val rewriteInPlace: ContentTransform =
+    fadeIn(tween(durationMillis = 300)) togetherWith fadeOut(tween(durationMillis = 300))
 
 val PantryLocation.label: String
     get() = when (this) {

@@ -133,7 +133,7 @@ fun HubApp() {
             modifier = Modifier.padding(padding),
         ) {
             composable<TodayRoute> { TodayScreen() }
-            composable<PantryRoute> { PantryScreen() }
+            composable<PantryRoute> { PantryScreen(snackbarHostState) }
             composable<SettingsRoute> { SettingsScreen(snackbarHostState) }
         }
     }
