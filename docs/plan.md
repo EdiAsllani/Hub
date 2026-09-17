@@ -176,7 +176,7 @@ Order matters; getting it wrong corrupts the database silently. **Validate the i
 
 1. Let the user pick the file with `ACTION_OPEN_DOCUMENT` and a `*/*` filter — the MIME type reported for `.db` files is inconsistent across providers, so filtering on it hides valid backups.
 2. Copy the picked file to a temp file in `cacheDir`.
-3. Validate the temp file: read the first 16 bytes and require the literal `SQLite format 3\0` header, then open it raw and run `PRAGMA quick_check`. Abort here on any failure — nothing has been touched yet.
+3. Validate the temp file: read the first 16 bytes and require the literal `SQLite format 3\0` header, read the schema version out of bytes 60–63 of that same header and abort if it is newer than this build, then open it raw and run `PRAGMA quick_check`. Abort here on any failure — nothing has been touched yet.
 4. Cancel and await the WorkManager daily job — it holds a database connection.
 5. Close the Room instance.
 6. **Rename** the current `hub.db` to `hub.db.bak` — never delete it.
@@ -184,7 +184,7 @@ Order matters; getting it wrong corrupts the database silently. **Validate the i
 8. Delete `hub.db-wal` and `hub.db-shm`. A stale WAL replayed over a freshly restored file is the classic silent corruption.
 9. Show a "Restored — tap to restart" dialog, and call `exitProcess(0)` when it is tapped. The dialog has to come first: after the process is killed there is nobody left to prompt. Rebuilding the Hilt-provided singleton database in place is more moving parts than it is worth for an operation performed a handful of times a year.
 
-A backup taken from a **newer** schema version than the installed APK will make Room throw on open. Catch it and show a plain message ("this backup is from a newer version of Hub"), not a crash.
+A backup taken from a **newer** schema version than the installed APK would make Room throw on open — and by then the live file is already gone. The header carries that version at bytes 60–63, so it is read during validation instead, while nothing has been touched, and the restore is refused with a plain message rather than a crash.
 
 ---
 
