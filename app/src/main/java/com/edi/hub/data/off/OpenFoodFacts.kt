@@ -45,7 +45,7 @@ class OpenFoodFacts @Inject constructor() {
         runCatching {
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@use null
-                val body = response.body?.string() ?: return@use null
+                val body = response.body.string()
                 val payload = json.decodeFromString<OffResponse>(body)
                 // status 0 is "no such product", which is a miss rather than a failure.
                 if (payload.status != 1) return@use null

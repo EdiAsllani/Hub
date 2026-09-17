@@ -6,6 +6,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.edi.hub.data.model.Disposition
 import com.edi.hub.data.model.PantryItem
 import com.edi.hub.data.model.PantryLocation
+import com.edi.hub.data.model.Product
+import com.edi.hub.data.model.ProductSource
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -31,6 +33,10 @@ class PantryGroupingTest {
     private val dao = db.pantryDao()
 
     @After fun close() = db.close()
+
+    private companion object {
+        const val DAY = 24L * 60 * 60
+    }
 
     private suspend fun add(
         name: String,
@@ -118,6 +124,68 @@ class PantryGroupingTest {
         assertEquals(2, counts[PantryLocation.FRIDGE])
         assertEquals(1, counts[PantryLocation.FREEZER])
         assertNull(counts[PantryLocation.PANTRY])
+    }
+
+    // The run-out rule's join is SQL rather than rule logic, so it is asserted here against a real
+    // database. The rule itself is a unit test over a fake Queries.
+
+    private suspend fun product(barcode: String, name: String, dismissedAt: Instant? = null) =
+        db.productDao().upsert(
+            Product(
+                barcode = barcode,
+                name = name,
+                runOutDismissedAt = dismissedAt,
+                source = ProductSource.USER,
+                updatedAt = Instant.ofEpochMilli(1_700_000_000_000),
+            ),
+        )
+
+    private val now: Instant = Instant.ofEpochMilli(1_800_000_000_000)
+    private val window: Long get() = now.minusSeconds(7 * 24 * 60 * 60).toEpochMilli()
+
+    @Test fun ranOutFiresOnlyWhenEveryBoxIsGone() = runBlocking {
+        product("111", "Eggs")
+        product("222", "Milk")
+        val eggs = add("Eggs", barcode = "111")
+        add("Milk", barcode = "222")
+        val openMilk = add("Milk", barcode = "222")
+
+        dao.resolve(eggs, now.minusSeconds(DAY).toEpochMilli(), Disposition.CONSUMED)
+        dao.resolve(openMilk, now.minusSeconds(DAY).toEpochMilli(), Disposition.CONSUMED)
+
+        // Milk still has one open box, so only the eggs ran out.
+        assertEquals(listOf("Eggs"), dao.runOutCandidates(window).map { it.name })
+    }
+
+    @Test fun ranOutStopsOnceDismissedAndFiresAgainAfterAReBuy() = runBlocking {
+        product("111", "Eggs")
+        val first = add("Eggs", barcode = "111")
+        dao.resolve(first, now.minusSeconds(3 * DAY).toEpochMilli(), Disposition.CONSUMED)
+        assertEquals(1, dao.runOutCandidates(window).size)
+
+        db.productDao().dismissRunOut("111", now.minusSeconds(2 * DAY).toEpochMilli())
+        assertEquals(0, dao.runOutCandidates(window).size)
+
+        // Bought again and finished again: the dismissal is now older than the resolution.
+        val second = add("Eggs", barcode = "111")
+        dao.resolve(second, now.minusSeconds(DAY).toEpochMilli(), Disposition.CONSUMED)
+        assertEquals(listOf("Eggs"), dao.runOutCandidates(window).map { it.name })
+    }
+
+    @Test fun ranOutForgetsSomethingFinishedLongAgo() = runBlocking {
+        product("222", "Salt")
+        val salt = add("Salt", barcode = "222")
+        dao.resolve(salt, now.minusSeconds(30 * DAY).toEpochMilli(), Disposition.CONSUMED)
+
+        assertEquals(0, dao.runOutCandidates(window).size)
+    }
+
+    @Test fun ranOutIgnoresHandEnteredRows() = runBlocking {
+        // No barcode means no Product to hold the dismissal, so the rule never applies.
+        val tomatoes = add("Tomatoes")
+        dao.resolve(tomatoes, now.minusSeconds(DAY).toEpochMilli(), Disposition.CONSUMED)
+
+        assertEquals(0, dao.runOutCandidates(window).size)
     }
 
     @Test fun undoPutsTheEntryBack() = runBlocking {

@@ -27,7 +27,7 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,7 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.edi.hub.data.dao.PantryCard
 import com.edi.hub.data.model.Disposition
@@ -141,7 +141,7 @@ private fun LocationTabs(
     counts: Map<PantryLocation, Int>,
     onLocation: (PantryLocation) -> Unit,
 ) {
-    TabRow(selectedTabIndex = PantryLocation.entries.indexOf(selected)) {
+    PrimaryTabRow(selectedTabIndex = PantryLocation.entries.indexOf(selected)) {
         PantryLocation.entries.forEach { location ->
             val count = counts[location] ?: 0
             Tab(

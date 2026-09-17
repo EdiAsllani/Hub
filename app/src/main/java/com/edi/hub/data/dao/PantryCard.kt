@@ -22,6 +22,17 @@ data class PantryCard(
     val entryCount: Int,
 )
 
+/**
+ * A product whose last open box has been resolved. Barcoded only: a null-barcode row has no
+ * `Product` to hold the dismissal, and two hand-typed "tomatoes" are not reliably the same thing.
+ */
+data class RunOutCandidate(
+    val barcode: String,
+    val name: String,
+    val brand: String?,
+    val lastResolvedAt: java.time.Instant,
+)
+
 /** Cards, not boxes: eggs `×2` counts once, which is what the tab is telling you. */
 data class LocationCount(
     val location: PantryLocation,

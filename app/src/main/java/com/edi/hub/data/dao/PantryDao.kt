@@ -75,6 +75,30 @@ interface PantryDao {
     )
     fun observeExpiringThrough(throughEpochDay: Long): Flow<List<PantryItem>>
 
+    /**
+     * The run-out rule, in SQL because it is a join rather than a decision. A product qualifies when
+     * every row under its barcode is resolved, the most recent resolution is inside the hold window,
+     * and any dismissal is older than that resolution — which is what makes a re-bought and
+     * re-finished product fire again with no extra bookkeeping.
+     */
+    @Query(
+        "SELECT p.barcode AS barcode, p.name AS name, p.brand AS brand, " +
+            "MAX(i.consumedAt) AS lastResolvedAt " +
+            "FROM product p JOIN pantry_item i ON i.barcode = p.barcode " +
+            "GROUP BY p.barcode " +
+            "HAVING SUM(CASE WHEN i.consumedAt IS NULL THEN 1 ELSE 0 END) = 0 " +
+            "AND MAX(i.consumedAt) >= :sinceEpochMilli " +
+            "AND (p.runOutDismissedAt IS NULL OR p.runOutDismissedAt < MAX(i.consumedAt)) " +
+            "ORDER BY lastResolvedAt DESC",
+    )
+    suspend fun runOutCandidates(sinceEpochMilli: Long): List<RunOutCandidate>
+
+    @Query(
+        "SELECT * FROM pantry_item WHERE consumedAt IS NULL AND expiresOn IS NOT NULL " +
+            "AND expiresOn <= :throughEpochDay ORDER BY expiresOn ASC",
+    )
+    suspend fun expiringThrough(throughEpochDay: Long): List<PantryItem>
+
     @Insert
     suspend fun insert(item: PantryItem): Long
 

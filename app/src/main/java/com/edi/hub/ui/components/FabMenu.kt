@@ -16,7 +16,7 @@ import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.QrCodeScanner
-import androidx.compose.material.icons.outlined.ReceiptLong
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Savings
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
@@ -48,7 +48,7 @@ private val RESERVED = listOf(
     ReservedAction("Record income", Icons.Outlined.Savings),
     ReservedAction("Record a debt", Icons.Outlined.AccountBalanceWallet),
     ReservedAction("Add a deadline", Icons.Outlined.EventAvailable),
-    ReservedAction("Record an expense", Icons.Outlined.ReceiptLong),
+    ReservedAction("Record an expense", Icons.AutoMirrored.Outlined.ReceiptLong),
 )
 
 /** ~25 ms between entries, bottom to top, so the column reads as coming out of the button. */
