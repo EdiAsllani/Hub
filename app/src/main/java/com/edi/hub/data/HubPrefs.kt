@@ -48,9 +48,23 @@ class HubPrefs @Inject constructor(private val prefs: SharedPreferences) {
             prefs.edit { putLong(KEY_LAST_BACKUP_AT, millis) }
         }
 
+    private val dailyReminderState = mutableStateOf(prefs.getBoolean(KEY_DAILY_REMINDER, false))
+
+    /**
+     * Off until the user asks for it, because turning it on is what asks for the notification
+     * permission — and the permission prompt at first launch is the one people always decline.
+     */
+    var dailyReminder: Boolean
+        get() = dailyReminderState.value
+        set(value) {
+            dailyReminderState.value = value
+            prefs.edit { putBoolean(KEY_DAILY_REMINDER, value) }
+        }
+
     private companion object {
         const val KEY_DYNAMIC_COLOR = "dynamic_color"
         const val KEY_BACKUP_FOLDER = "backup_folder"
         const val KEY_LAST_BACKUP_AT = "last_backup_at"
+        const val KEY_DAILY_REMINDER = "daily_reminder"
     }
 }

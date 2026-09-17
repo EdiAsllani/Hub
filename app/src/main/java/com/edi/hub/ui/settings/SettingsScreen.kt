@@ -1,5 +1,8 @@
 package com.edi.hub.ui.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -23,8 +26,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import java.time.Instant
 import java.time.ZoneId
@@ -45,6 +50,12 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
+    // Asked for here, the first time the reminder is switched on, and nowhere else.
+    val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) viewModel.setDailyReminder(true) else viewModel.reminderDenied()
+    }
+
     val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
         if (tree != null) viewModel.rememberFolder(tree)
     }
@@ -120,22 +131,31 @@ fun SettingsScreen(
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
+        Text("Reminders", style = MaterialTheme.typography.titleMedium)
+        SettingRow(
+            headline = "One summary at 08:00",
+            support = "The only notification Hub ever sends. Silent on the days when nothing needs you.",
+            checked = viewModel.dailyReminder,
+            onCheckedChange = { wanted ->
+                when {
+                    !wanted -> viewModel.setDailyReminder(false)
+                    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                        PackageManager.PERMISSION_GRANTED -> viewModel.setDailyReminder(true)
+                    else -> askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
+        )
+
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
         Text("Appearance", style = MaterialTheme.typography.titleMedium)
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("Colours from my wallpaper", style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    "Off keeps Hub's own teal, which is what the urgency colours were picked against.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Switch(checked = viewModel.dynamicColor, onCheckedChange = viewModel::setDynamicColor)
-        }
+        SettingRow(
+            headline = "Colours from my wallpaper",
+            support = "Off keeps Hub's own teal, which is what the urgency colours were picked against.",
+            checked = viewModel.dynamicColor,
+            onCheckedChange = viewModel::setDynamicColor,
+        )
     }
 
     viewModel.pending?.let { pending ->
@@ -148,6 +168,31 @@ fun SettingsScreen(
     }
 
     if (viewModel.restarting) RestartDialog()
+}
+
+/** Undrawn, and a plain M3 switch row is enough for both of the two settings that need one. */
+@Composable
+private fun SettingRow(
+    headline: String,
+    support: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(headline, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                support,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
 }
 
 /**

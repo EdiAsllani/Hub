@@ -339,8 +339,8 @@ private fun FirstLaunch() {
         Text("Today is empty", style = MaterialTheme.typography.titleLarge)
         Text(
             "When something is about to go off, or you finish the last of something, it shows up " +
-                "here one card at a time. Hub also sends one summary at 08:00 — no other " +
-                "notifications, ever.",
+                "here one card at a time. Hub can also send one summary at 08:00 if you switch it " +
+                "on in settings — that is the only notification it will ever send.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

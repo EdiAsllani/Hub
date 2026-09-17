@@ -18,6 +18,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.edi.hub.work.cancelDailyNudge
+import com.edi.hub.work.scheduleDailyNudge
 import java.time.Instant
 import javax.inject.Inject
 
@@ -54,6 +56,23 @@ class SettingsViewModel @Inject constructor(
 
     fun setDynamicColor(enabled: Boolean) {
         prefs.dynamicColor = enabled
+    }
+
+    val dailyReminder: Boolean get() = prefs.dailyReminder
+
+    /**
+     * Only reached once the permission is settled. Without it the summary is dropped silently, so
+     * the switch stays off rather than pretending to be on.
+     */
+    fun setDailyReminder(enabled: Boolean) {
+        prefs.dailyReminder = enabled
+        if (enabled) scheduleDailyNudge(context) else cancelDailyNudge(context)
+        if (!enabled) message = "Daily summary off."
+    }
+
+    fun reminderDenied() {
+        prefs.dailyReminder = false
+        message = "Hub needs permission to post notifications before it can remind you."
     }
 
     fun rememberFolder(tree: Uri) {
