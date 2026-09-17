@@ -2,7 +2,7 @@
 
 A fully offline Android app for the things you own, owe, or track. No account, no backend, no login — all data lives in a single SQLite file you can copy to a PC or drop in a synced folder.
 
-Hub is built on the idea that the whole app is only three primitives: a **due-date thing**, an **item with a status and a rating**, and a **money event**. A new feature has to map onto one of those with a new filter, or it does not get built. See [`HANDOVER.md`](HANDOVER.md) for the reasoning and [`docs/plan.md`](docs/plan.md) for the implementation decisions.
+Hub is built on the idea that the whole app is only three primitives: a **due-date thing**, an **item with a status and a rating**, and a **money event**. A new feature has to map onto one of those with a new filter, or it does not get built. See [`docs/HANDOVER.md`](docs/HANDOVER.md) for the reasoning and [`docs/plan.md`](docs/plan.md) for the implementation decisions.
 
 ## Status
 

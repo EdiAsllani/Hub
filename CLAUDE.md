@@ -7,7 +7,7 @@ Read this file before doing anything in it.
 
 | Document | Settles |
 |---|---|
-| `HANDOVER.md` | What the app is and why. Product decisions. |
+| `docs/HANDOVER.md` | What the app is and why. Product decisions. |
 | `docs/plan.md` | How it gets built: stack, schema, storage mechanics, build order. §8 is the open-items ledger. |
 | `design/spec.md` | The phase 1 design. **Its §7 owner decisions outrank both documents above.** |
 | `README.md` | What actually exists right now. |

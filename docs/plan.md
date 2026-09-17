@@ -1,6 +1,6 @@
 # Hub — Implementation Plan
 
-Companion to `HANDOVER.md`. That document settles *what* the app is and *why*; this one settles *how* it gets built: stack, schema, storage mechanics, and the order of work. Where the two disagree, `HANDOVER.md` wins on product decisions and this document wins on implementation detail.
+Companion to `docs/HANDOVER.md`. That document settles *what* the app is and *why*; this one settles *how* it gets built: stack, schema, storage mechanics, and the order of work. Where the two disagree, `docs/HANDOVER.md` wins on product decisions and this document wins on implementation detail.
 
 `design/spec.md` is the third document, and it outranks both on the five owner decisions recorded in its §7: no quantity tracking, count by scan, one date per scan, run-out in place of low stock, and the `disposition` column. Those points are settled, and this plan has been rewritten to match them rather than to reconcile them. The design itself lives as artboards on a Design canvas the owner holds the link to; §1 (foundations), §6 (motion) and §8 (sample data) there are the reference for anything visual, and are deliberately not restated here.
 
@@ -8,7 +8,7 @@ Companion to `HANDOVER.md`. That document settles *what* the app is and *why*; t
 
 ## 1. Context
 
-`HANDOVER.md` describes a fully offline Android app — a personal hub for things owned, owed, or tracked — built on three primitives (due-date thing, item + status + rating, money event) with a dashboard of insight cards as the product. The design is settled; the repository holds that handover document, the scaffolded Android project, and the phase 1 design under `design/`.
+`docs/HANDOVER.md` describes a fully offline Android app — a personal hub for things owned, owed, or tracked — built on three primitives (due-date thing, item + status + rating, money event) with a dashboard of insight cards as the product. The design is settled; the repository holds that handover document, the scaffolded Android project, and the phase 1 design under `design/`.
 
 This plan exists to turn that design into something buildable: it fixes the open questions from §11 of the handover, pins the technology choices, expands the data model sketch into a schema that Room will actually accept, and hardens the backup/restore path — which is the one part of the app where a mistake destroys real data rather than annoying the user.
 
@@ -226,7 +226,7 @@ Later phases, in value order: Deadlines (warranty and documents first) → Money
 
 ## 8. Open items
 
-- **Navigation order.** `HANDOVER.md` §10 and §6 of this plan list Today first; the design brief fixes **Pantry · Deadlines · Today · Money · Backlog** and says not to reorder, putting Today at the thumb's home position. `design/spec.md` §7 flags this rather than deciding it, because it is a documentation inconsistency and not a design question. It needs one sentence from the owner before step 1 is written; the code is a list literal either way.
+- **Navigation order.** `docs/HANDOVER.md` §10 and §6 of this plan list Today first; the design brief fixes **Pantry · Deadlines · Today · Money · Backlog** and says not to reorder, putting Today at the thumb's home position. `design/spec.md` §7 flags this rather than deciding it, because it is a documentation inconsistency and not a design question. It needs one sentence from the owner before step 1 is written; the code is a list literal either way.
 - **`Product.defaultLocation`**, learned the same way as `defaultShelfLifeDays`, would remove a tap from every rescan. `defaultUnit` is gone with the units, and `defaultDescription` has been taken. Still **the owner's call** before the schema is frozen; adding it later is a trivial migration.
 - **The run-out hold window**, and what "Not now" means. "Got it" is settled — it writes `runOutDismissedAt`. "Not now" is described as leaving the card for tomorrow, which could be a same-day hide held in memory or a second `snoozedUntil` column. The in-memory version ships nothing and is the assumption until told otherwise.
 - **Two states have no design yet** and `design/spec.md` §5 says so: a backup that fails mid-write, and a backup file from a newer schema than the installed APK. §5 of this plan says to catch the second and show a plain message; what that message looks like is undrawn.
