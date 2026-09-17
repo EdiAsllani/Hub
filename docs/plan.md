@@ -50,18 +50,18 @@ Single module, Kotlin, KSP, Gradle version catalog (`gradle/libs.versions.toml`)
 | Images | **Coil 3** + `coil-network-okhttp` | Only ever loads the Open Food Facts `imageUrl`. Never used for BLOBs. |
 | Barcode scanning | `com.google.android.gms:play-services-code-scanner` | `GmsBarcodeScanning.getClient(context).startScan()`. No camera permission, no CameraX. |
 | Background work | **WorkManager** | Daily ~08:00 summary notification. |
-| Settings (SAF tree URI, currency, last-backup time) | **`SharedPreferences`** | Three values. DataStore is a dependency and a coroutine API for no gain here. |
+| Settings (SAF tree URI, last-backup time, dynamic colour, the daily reminder) | **`SharedPreferences`** | A handful of values. DataStore is a dependency and a coroutine API for no gain here. |
 | Encryption (phase 3+) | `javax.crypto` — `PBKDF2WithHmacSHA256` (~600k iterations) + AES-GCM | No dependency. See §9 of the handover; the scheme there stands unchanged. |
 
 ### Architecture
 
-Single `Activity`, Compose-only, no fragments. Per feature: `Dao` → `Repository` → `ViewModel` exposing a `StateFlow<UiState>`. DAO queries return `Flow`, so list animations and the dashboard update themselves on write. Insight rules live in a `domain` package as plain suspend functions over a `Queries` facade — a `List<suspend (Queries) -> List<Insight>>`, exactly as sketched in the handover. Not a rules engine.
+Single `Activity`, Compose-only, no fragments. Per feature: `Dao` → `ViewModel` exposing a `StateFlow<UiState>`, with a repository in between only where there is work that is not a query — backup and restore is one, the Open Food Facts lookup is another. A class that forwards each DAO call unchanged is a layer, not an abstraction. DAO queries return `Flow`, so list animations and the dashboard update themselves on write. Insight rules live in a `domain` package as plain suspend functions over a `Queries` facade — a `List<suspend (Queries) -> List<Insight>>`, exactly as sketched in the handover. Not a rules engine.
 
 ### What the design costs the build
 
 - **The urgency ramp is a `CompositionLocal`** supplied next to `MaterialTheme`, not colours picked at each call site. Four buckets, each with a foreground, a background and an icon; `design/spec.md` §1 has the hex values for both themes. Every chip draws icon *and* text label alongside the colour.
 - **Fonts are bundled in `res/font`,** not fetched. Gabarito for display and numerals, Figtree for body. The mockups pull them from Google Fonts because they are web pages; the app is offline and must not. Material Symbols ships as a variable font too — subset it, or the APK carries a few MB of unused glyphs. **Verify at setup that the Gabarito build in use actually exposes `tnum`**; the tabular-figure requirement for every count and days-left number depends on it, and a fallback is a font swap, not a code change.
-- **The FAB menu is `FloatingActionButtonMenu`,** which is a Material 3 Expressive API — the same `@OptIn` caveat as the UI row above applies, and it is worth checking before the capture flow is designed around the morph.
+- **The FAB menu is hand-built.** `FloatingActionButtonMenu` is a Material 3 Expressive API and is **not** present in material3 1.4.0, which is the version this project can build against until `compileSdk 37` is published. The menu is a column of entries staggered in behind the FAB, and it gains nothing by waiting for the component.
 - **The ghosted navigation slot is hand-built.** `NavigationBar` has no disabled-item state, so the treatment in `design/spec.md` §2 — reduced emphasis, thinner icon stroke, dotted underline, no ripple, a snackbar, and a TalkBack announcement of "dimmed, not available yet" — is a local composable reused by the six reserved FAB entries.
 
 ### Platform details that are easy to miss

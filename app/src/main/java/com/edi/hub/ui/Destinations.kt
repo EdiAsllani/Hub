@@ -21,6 +21,18 @@ import kotlinx.serialization.Serializable
 @Serializable object SettingsRoute
 
 /**
+ * Capture is a nested graph so the three steps share one ViewModel and so system back reverses one
+ * step at a time. Full screen: no navigation bar, no top bar.
+ */
+@Serializable object CaptureGraph
+
+@Serializable object CaptureIdentifyRoute
+
+@Serializable object CaptureNameRoute
+
+@Serializable object CaptureDateRoute
+
+/**
  * Bar order is fixed: Pantry at the far left, Today in the centre at the thumb's home position.
  * Deadlines, Money and Backlog are shown but not built yet, so the app is visibly growing into
  * them rather than hiding them. [route] is null while that is the case.

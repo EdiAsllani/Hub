@@ -56,6 +56,18 @@ interface PantryDao {
     )
     fun observeGroup(location: PantryLocation, groupKey: String): Flow<List<PantryItem>>
 
+    /**
+     * The three-way branch at step 1 of capture: anything already open under this barcode, grouped
+     * per shelf, because the same product in the fridge and in the freezer is two cards.
+     */
+    @Query(
+        "SELECT $GROUP_KEY AS groupKey, barcode, name, brand, description, location, " +
+            "MIN(expiresOn) AS expiresOn, COUNT(*) AS entryCount " +
+            "FROM pantry_item WHERE consumedAt IS NULL AND barcode = :barcode " +
+            "GROUP BY location ORDER BY expiresOn IS NULL, expiresOn ASC",
+    )
+    suspend fun cardsForBarcode(barcode: String): List<PantryCard>
+
     /** Backs the `expiringSoon` dashboard rule. */
     @Query(
         "SELECT * FROM pantry_item WHERE consumedAt IS NULL AND expiresOn IS NOT NULL " +
@@ -75,6 +87,13 @@ interface PantryDao {
      */
     @Query("UPDATE pantry_item SET consumedAt = :resolvedAt, disposition = :disposition WHERE id = :id")
     suspend fun resolve(id: Long, resolvedAt: Long, disposition: Disposition)
+
+    /**
+     * Undo for a row that was just added, not one that was resolved: it was never consumed, so a
+     * soft delete would leave a phantom in the consumption history.
+     */
+    @Query("DELETE FROM pantry_item WHERE id = :id")
+    suspend fun delete(id: Long)
 
     /** Undo. Both columns go back to null on the row that was returned. */
     @Query("UPDATE pantry_item SET consumedAt = NULL, disposition = NULL WHERE id = :id")

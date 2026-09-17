@@ -6,6 +6,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -102,6 +103,51 @@ fun GhostedNavItem(
             overflow = TextOverflow.Ellipsis,
         )
         DottedRule(color = tint.copy(alpha = GHOSTED_ALPHA), modifier = Modifier.width(24.dp))
+    }
+}
+
+/**
+ * The same rule in the other place it is needed: a reserved entry in the FAB menu. Same emphasis,
+ * same thinner icon, same dotted rule, same absence of a ripple — laid out as a row rather than a
+ * column because that is the shape of a menu entry.
+ */
+@Composable
+fun GhostedMenuEntry(
+    label: String,
+    icon: ImageVector,
+    onTap: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tint = MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        modifier = modifier
+            .selectable(
+                selected = false,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onTap,
+            )
+            .semantics { contentDescription = "$label, dimmed, not available yet" }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(horizontalAlignment = Alignment.Start) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = tint.copy(alpha = GHOSTED_ALPHA),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            DottedRule(color = tint.copy(alpha = GHOSTED_ALPHA))
+        }
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint.copy(alpha = GHOSTED_ALPHA),
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 
