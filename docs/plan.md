@@ -2,11 +2,13 @@
 
 Companion to `HANDOVER.md`. That document settles *what* the app is and *why*; this one settles *how* it gets built: stack, schema, storage mechanics, and the order of work. Where the two disagree, `HANDOVER.md` wins on product decisions and this document wins on implementation detail.
 
+`design/spec.md` is the third document, and it outranks both on the five owner decisions recorded in its §7: no quantity tracking, count by scan, one date per scan, run-out in place of low stock, and the `disposition` column. Those points are settled, and this plan has been rewritten to match them rather than to reconcile them. The design itself lives as artboards on the Design canvas linked from that spec; §1 (foundations), §6 (motion) and §8 (sample data) there are the reference for anything visual, and are deliberately not restated here.
+
 ---
 
 ## 1. Context
 
-`HANDOVER.md` describes a fully offline Android app — a personal hub for things owned, owed, or tracked — built on three primitives (due-date thing, item + status + rating, money event) with a dashboard of insight cards as the product. The design is settled and no code exists yet. The repository currently contains only that handover document.
+`HANDOVER.md` describes a fully offline Android app — a personal hub for things owned, owed, or tracked — built on three primitives (due-date thing, item + status + rating, money event) with a dashboard of insight cards as the product. The design is settled; the repository holds that handover document, the scaffolded Android project, and the phase 1 design under `design/`.
 
 This plan exists to turn that design into something buildable: it fixes the open questions from §11 of the handover, pins the technology choices, expands the data model sketch into a schema that Room will actually accept, and hardens the backup/restore path — which is the one part of the app where a mistake destroys real data rather than annoying the user.
 
@@ -22,11 +24,12 @@ Intended outcome: a sideloadable, self-signed APK, open-sourced on GitHub, whose
 | compileSdk / targetSdk | **36** (Android 16 — the owner's device). |
 | App name / package | **Hub** / `com.edi.hub`. |
 | Currency | **Single currency**, an app-wide setting. The `currency` column stays in the schema so multi-currency is a later migration rather than a rewrite, but no picker is ever shown. |
-| Pantry units | **Fixed enum**: `pcs | g | ml`. |
+| Pantry units | **Dropped entirely.** No `quantity`, no unit enum. A free-text `description` typed off the pack ("500 ml", "24 cope", "1 kg") replaces both, and Hub never parses, converts or sums it. See `design/spec.md` §7.1. |
+| Pantry counts | **Derived, never stored.** Scanning a barcode already in the pantry adds a second row; the list groups them into one `×2` card. No count column. See §4. |
 | Pantry locations | **Fixed enum**: `fridge | freezer | pantry`. |
 | Vault biometric unlock | **Deferred to phase 3+.** Master password only when the vault ships. |
 | Backup cadence | **Manual button only** for now. A scheduled export can reuse the same code path later. |
-| "Consumed" semantics | **Soft delete** — set `consumedAt`, never delete the row. Consumption history is what makes restock and spending insights possible. |
+| "Consumed" semantics | **Soft delete** — set `consumedAt`, never delete the row. Consumption history is what makes restock and spending insights possible. A `disposition` column (`CONSUMED` \| `DISCARDED`) records which of the two swipes resolved it; `consumedAt` means *resolved at*, whichever the disposition. |
 | Dependency injection | **Hilt.** |
 | Module structure | **Single `:app` module**, packaged by feature. |
 
@@ -53,6 +56,13 @@ Single module, Kotlin, KSP, Gradle version catalog (`gradle/libs.versions.toml`)
 ### Architecture
 
 Single `Activity`, Compose-only, no fragments. Per feature: `Dao` → `Repository` → `ViewModel` exposing a `StateFlow<UiState>`. DAO queries return `Flow`, so list animations and the dashboard update themselves on write. Insight rules live in a `domain` package as plain suspend functions over a `Queries` facade — a `List<suspend (Queries) -> List<Insight>>`, exactly as sketched in the handover. Not a rules engine.
+
+### What the design costs the build
+
+- **The urgency ramp is a `CompositionLocal`** supplied next to `MaterialTheme`, not colours picked at each call site. Four buckets, each with a foreground, a background and an icon; `design/spec.md` §1 has the hex values for both themes. Every chip draws icon *and* text label alongside the colour.
+- **Fonts are bundled in `res/font`,** not fetched. Gabarito for display and numerals, Figtree for body. The mockups pull them from Google Fonts because they are web pages; the app is offline and must not. Material Symbols ships as a variable font too — subset it, or the APK carries a few MB of unused glyphs. **Verify at setup that the Gabarito build in use actually exposes `tnum`**; the tabular-figure requirement for every count and days-left number depends on it, and a fallback is a font swap, not a code change.
+- **The FAB menu is `FloatingActionButtonMenu`,** which is a Material 3 Expressive API — the same `@OptIn` caveat as the UI row above applies, and it is worth checking before the capture flow is designed around the morph.
+- **The ghosted navigation slot is hand-built.** `NavigationBar` has no disabled-item state, so the treatment in `design/spec.md` §2 — reduced emphasis, thinner icon stroke, dotted underline, no ripple, a snackbar, and a TalkBack announcement of "dimmed, not available yet" — is a local composable reused by the six reserved FAB entries.
 
 ### Platform details that are easy to miss
 
@@ -83,7 +93,7 @@ The entities from §7 of the handover are correct in shape. What follows adds th
 
 `PantryItem(expiresOn)`, `PantryItem(barcode)`, `PantryItem(consumedAt)`, `PantryItem(tripId)`, `Deadline(dueOn)`, `Deadline(kind)`, `MoneyEvent(occurredAt)`, `MoneyEvent(tripId)`, `PriceObservation(barcode)`.
 
-Every one of these backs either a dashboard rule or a list filter. Room additionally requires an index on any foreign-key column.
+Every one of these backs either a dashboard rule or a list filter. Room additionally requires an index on any foreign-key column. `PantryItem(barcode)` is no longer merely useful: it backs the grouped pantry query below, which runs on every frame of the list.
 
 ### Foreign keys
 
@@ -103,10 +113,40 @@ A database-level constraint is cheaper and more reliable than the equivalent app
 | 4 | `Secret`, `DeadlinePhoto` |
 | 5 | `PriceObservation` |
 
-Field definitions are taken verbatim from §7 of the handover; this plan does not restate them. Two clarifications:
+Field definitions come from §7 of the handover, with the following delta, which is not optional — the handover's `PantryItem` predates the owner decisions in `design/spec.md` §7.
 
-- `PantryItem.unit` and `PantryItem.location` become enums rather than `String`, per §2. Name them **`PantryUnit`** and **`PantryLocation`** — an `enum class Unit` in the data package shadows `kotlin.Unit` for every file in that package, and a bare `Location` invites confusion with `android.location.Location`.
+| Table | Change |
+|---|---|
+| `PantryItem` | remove `quantity`, remove `unit` |
+| `PantryItem` | add `description: String?` — free text off the pack, never parsed |
+| `PantryItem` | add `brand: String?` — free text on the item, pre-filled from `Product` on a lookup hit |
+| `PantryItem` | add `disposition: Disposition?` — `CONSUMED` \| `DISCARDED`, set beside `consumedAt` |
+| `PantryItem` | `location` becomes **non-null** `PantryLocation` |
+| `Product` | add `defaultDescription: String?`, learned exactly as `defaultShelfLifeDays` is |
+| `Product` | add `runOutDismissedAt: Instant?` — backs the run-out rule's "Got it", see below |
+
+Three clarifications:
+
+- `PantryItem.location` becomes an enum **and loses its nullability**. The pantry is location tabs now, so an item with no location has nowhere to appear; the capture flow always sets one. Name it **`PantryLocation`** — a bare `Location` invites confusion with `android.location.Location`. The parallel `PantryUnit` is never created, and the note about it shadowing `kotlin.Unit` is moot.
+- `consumedAt` keeps its name but now means *resolved at*, whichever way the item went; `disposition` says which. Undo on either swipe nulls both columns on the row it returned.
 - `DeadlinePhoto.bytes` and `Secret.ciphertext` are both AES-GCM ciphertext with the 12-byte nonce prefixed. One helper, one format, no separate nonce column.
+
+### The pantry list query
+
+The `×n` card is derived at read time. There is no count column, and adding one later would be the wrong fix — the whole point of `design/spec.md` §7.3 is that two boxes are two rows with two honest dates.
+
+The list filters to one location and to open rows — `WHERE location = ? AND consumedAt IS NULL` — and *then* groups, selecting `MIN(expiresOn)` and `COUNT(*)` per group. The same product in the fridge and in the freezer is therefore two cards, one on each tab, which is also why the tab counts are cards rather than boxes. Two further details decide whether it works:
+
+- **Group on `COALESCE(barcode, 'id:' || id)`, not on `barcode`.** SQLite treats NULLs as equal in `GROUP BY`, so grouping on the bare column collapses every hand-entered item in the pantry into a single card — spinach, tomatoes and the sourdough as one row reading `×3`. The spec's "rows with a null barcode never group" is intent; this expression is what implements it.
+- **Resolving picks `ORDER BY expiresOn ASC NULLS LAST LIMIT 1` within the group.** Plain `ASC` sorts NULL first in SQLite, so a dateless box would be consumed ahead of a dated one — and would contradict the card, since `MIN()` skips NULLs. minSdk 30 guarantees SQLite ≥ 3.32, where `NULLS LAST` is available.
+
+The card's date is therefore always the date the next swipe will resolve, which is the property the whole model rests on.
+
+### The run-out rule
+
+Today's second rule fires for a product whose open rows have all been resolved. It needs no new machinery beyond one column: a product is a run-out candidate when it has zero rows with `consumedAt IS NULL`, its most recent `consumedAt` is within the hold window, and `runOutDismissedAt` is either null or older than that `consumedAt` — so a product bought and finished again re-fires without any extra bookkeeping. "Got it" writes the timestamp.
+
+The rule is **barcoded items only**: a null-barcode row has no `Product` to hold the dismissal, and two hand-typed "tomatoes" are not reliably the same thing, which is the same reason they never group in the list.
 
 ### Migrations
 
@@ -150,17 +190,21 @@ A backup taken from a **newer** schema version than the installed APK will make 
 
 ## 6. Build order
 
-Unchanged from §10 of the handover. Phase 1 is the shell plus pantry:
+The order is unchanged from §10 of the handover; steps 1 and 5 to 9 have been rewritten to match `design/spec.md`. Phase 1 is the shell plus pantry:
 
-1. Compose shell, Material 3, `NavigationBar`, five destinations — **Today · Pantry · Deadlines · Money · Backlog** — three of them empty stubs. The vault lives inside Deadlines, never as its own tab.
+1. Compose shell, Material 3, `NavigationBar`, five destinations — **Today · Pantry · Deadlines · Money · Backlog** — three of them ghosted stubs, using the treatment in `design/spec.md` §2 rather than a plain empty screen. The vault lives inside Deadlines, never as its own tab. **The order of the five is unresolved** — the design brief fixes a different one; see §8.
 2. Room with the Gradle plugin, `exportSchema = true`, entities `Product` + `PantryItem` + `Trip`.
 3. SAF folder picker, `VACUUM INTO` backup, and restore — **round-trip proven before anything else is built on top of it**.
 4. Barcode scan via `GmsBarcodeScanning`.
-5. Open Food Facts lookup, with a miss degrading to a one-field name prompt cached to `Product` with `source = USER`. The miss is a normal path, not an error state.
-6. Learned `defaultShelfLifeDays` written back whenever the user corrects a date.
-7. Pantry list: filter by location and urgency, sort by expiry, `Modifier.animateItem()`, urgency chips carrying **icon + text label + color** — never color alone.
-8. The "+" FAB action sheet, initially with one live action.
-9. Today tab wired to exactly two rules: `expiringSoon` and `lowStock`.
+5. The capture sequence, which branches three ways at step 1 after the scan:
+   - **Barcode already in the pantry** — show the existing card and stop. Tapping it adds a row and finishes there: no date step, three taps from the FAB, undo in the snackbar. The new row copies `barcode`, `name`, `brand`, `description` and `location` from the group it joins, and takes `expiresOn` = today + the product's `defaultShelfLifeDays`, or null where nothing has been learned yet. **This is the path worth protecting** — it is the most common scan in a real week and the shortest route in the app.
+   - **Open Food Facts hit on a new product** — the card auto-advances after 600 ms, spending no tap on confirmation.
+   - **Miss or two-second timeout** — move to step 2 by itself. Not an error state; the naming step exists on every path anyway.
+   Step 2 is the product form: name, brand and description, all free text, with the helper line that teaches what description is for. A miss caches to `Product` with `source = USER`.
+6. Learned `defaultShelfLifeDays` and `defaultDescription` written back whenever the user corrects either one. Only a correction teaches; accepting a pre-filled value writes nothing.
+7. Pantry list: location tabs with card counts, filter chips, sort by expiry, `Modifier.animateItem()`, urgency chips carrying **icon + text label + color** — never color alone. Rows are the grouped query above. Both gestures ship together — `SwipeToDismissBox` in both directions, arming at 40%, haptic on commit, four-second undo snackbar, and no confirmation dialog. There is no trailing checkbox; the swipe replaces it. A swipe on a `×n` card decrements the badge and rewrites the date in place rather than collapsing the row, and that difference is the part to get right.
+8. The FAB menu, with one live action and the six reserved entries ghosted — the same composable as step 1, not a second implementation of the idea.
+9. Today tab wired to exactly two rules: `expiringSoon` and `ranOut`. One card at a time with a counter, an expiry card taking its urgency band's colour and a run-out card taking the brand teal, and a cleared state that is a designed screen rather than an empty list.
 10. Daily WorkManager job at ~08:00 posting a summary notification. The dashboard is passive; without the nudge the app gets forgotten. Enqueue it with `enqueueUniquePeriodicWork(..., KEEP)` on every launch, so a job cancelled during a restore re-establishes itself on the next start.
 
 Then install the APK and **live on it for two weeks before writing a second tab.** The largest risk to this project is five half-finished tabs instead of one that gets used.
@@ -174,13 +218,16 @@ Later phases, in value order: Deadlines (warranty and documents first) → Money
 - **Backup round-trip, instrumented test, phase 1**: insert rows → back up → wipe app data → restore → assert the rows are present. This test is the acceptance criterion for step 3 above.
 - **Restore hardening**: unit-test the header check and the `quick_check` rollback with a deliberately truncated file.
 - **Migrations**: `MigrationTestHelper` scaffolded from schema v1, with the exported schemas wired in as `androidTest` assets. Every migration adds a test.
-- **Insight rules**: plain unit tests over a fake `Queries`. Comparative rules must return *empty* with less than two months of data — assert that, and do not fake it with seed data.
-- **Manual, before declaring phase 1 done**: sideload the release APK, scan three real items in a shop, confirm the learned shelf life pre-fills on a rescan, force-stop, restore from the SAF folder, and confirm the daily notification fires.
+- **The grouped pantry query**, `androidTest` against a real in-memory Room database rather than a fake — the SQL is the thing under test, so nothing about it can be mocked: two rows sharing a barcode collapse to one card carrying `MIN(expiresOn)` and a count of 2; two rows with null barcodes stay two cards; resolving the group takes the row with the earliest non-null date, and a dateless row in the group is taken last. These three assertions are what stop the count model from quietly breaking.
+- **Insight rules**: plain unit tests over a fake `Queries`. `ranOut` fires only when the product's last open row is resolved, holds for the window, and stops firing once `runOutDismissedAt` is newer than the resolution. Comparative rules must return *empty* with less than two months of data — assert that, and do not fake it with seed data.
+- **Manual, before declaring phase 1 done**: sideload the release APK, scan three real items in a shop, scan one of them twice and confirm the card reads `×2` with the sooner date, swipe it and confirm it drops to `×1` with the later one, confirm the learned shelf life pre-fills on a rescan, force-stop, restore from the SAF folder, and confirm the daily notification fires.
 
 ---
 
 ## 8. Open items
 
-- `Product.defaultUnit` and `Product.defaultLocation`, learned the same way as `defaultShelfLifeDays`, would remove two taps from every rescan. Not in the handover — **the owner's call** before the schema is frozen; adding it later is a trivial migration either way.
-- Low-stock thresholds: a per-item column, or a single global rule ("quantity hits 0")? Global is assumed for phase 1.
+- **Navigation order.** `HANDOVER.md` §10 and §6 of this plan list Today first; the design brief fixes **Pantry · Deadlines · Today · Money · Backlog** and says not to reorder, putting Today at the thumb's home position. `design/spec.md` §7 flags this rather than deciding it, because it is a documentation inconsistency and not a design question. It needs one sentence from the owner before step 1 is written; the code is a list literal either way.
+- **`Product.defaultLocation`**, learned the same way as `defaultShelfLifeDays`, would remove a tap from every rescan. `defaultUnit` is gone with the units, and `defaultDescription` has been taken. Still **the owner's call** before the schema is frozen; adding it later is a trivial migration.
+- **The run-out hold window**, and what "Not now" means. "Got it" is settled — it writes `runOutDismissedAt`. "Not now" is described as leaving the card for tomorrow, which could be a same-day hide held in memory or a second `snoozedUntil` column. The in-memory version ships nothing and is the assumption until told otherwise.
+- **Two states have no design yet** and `design/spec.md` §5 says so: a backup that fails mid-write, and a backup file from a newer schema than the installed APK. §5 of this plan says to catch the second and show a plain message; what that message looks like is undrawn.
 - Notification time (08:00 assumed) — configurable, or fixed until it annoys someone?
