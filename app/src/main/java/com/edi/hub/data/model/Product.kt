@@ -17,8 +17,12 @@ data class Product(
     val category: String? = null,
     /** Set or corrected by the user; pre-fills the expiry date on every later scan. */
     val defaultShelfLifeDays: Int? = null,
+    /** Learned exactly as [defaultShelfLifeDays] is: only a correction writes it. */
+    val defaultDescription: String? = null,
     /** Remote URL only, never a BLOB. */
     val imageUrl: String? = null,
+    /** "Got it" on a run-out card. Older than the latest resolution means the card fires again. */
+    val runOutDismissedAt: Instant? = null,
     val source: ProductSource,
     val updatedAt: Instant,
 )

@@ -13,7 +13,20 @@ interface ProductDao {
     @Upsert
     suspend fun upsert(product: Product)
 
-    /** Called when the user corrects an expiry date, so the next scan pre-fills correctly. */
-    @Query("UPDATE product SET defaultShelfLifeDays = :days, updatedAt = :updatedAt WHERE barcode = :barcode")
-    suspend fun updateShelfLife(barcode: String, days: Int, updatedAt: Long)
+    /**
+     * Learning. Only a correction gets here — accepting a pre-filled value teaches nothing, so the
+     * caller compares before it writes. A null argument leaves that column as it was, which is what
+     * lets one statement carry both the date and the description.
+     */
+    @Query(
+        "UPDATE product SET " +
+            "defaultShelfLifeDays = COALESCE(:days, defaultShelfLifeDays), " +
+            "defaultDescription = COALESCE(:description, defaultDescription), " +
+            "updatedAt = :updatedAt WHERE barcode = :barcode",
+    )
+    suspend fun learn(barcode: String, days: Int?, description: String?, updatedAt: Long)
+
+    /** "Got it" on a run-out card. Older than the product's latest resolution means it fires again. */
+    @Query("UPDATE product SET runOutDismissedAt = :dismissedAt WHERE barcode = :barcode")
+    suspend fun dismissRunOut(barcode: String, dismissedAt: Long)
 }

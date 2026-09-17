@@ -3,9 +3,9 @@ package com.edi.hub.data
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.edi.hub.data.model.Disposition
 import com.edi.hub.data.model.PantryItem
 import com.edi.hub.data.model.PantryLocation
-import com.edi.hub.data.model.PantryUnit
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -17,7 +17,7 @@ import java.time.LocalDate
 
 /**
  * Guards the two things most likely to break silently: the LocalDate/Instant converters,
- * and the fact that a consumed item is soft-deleted rather than removed.
+ * and the fact that a resolved item is soft-deleted rather than removed.
  */
 @RunWith(AndroidJUnit4::class)
 class HubDatabaseTest {
@@ -35,8 +35,8 @@ class HubDatabaseTest {
         val id = db.pantryDao().insert(
             PantryItem(
                 name = "Yogurt",
-                quantity = 1.0,
-                unit = PantryUnit.PCS,
+                brand = "Rugove",
+                description = "400 g",
                 location = PantryLocation.FRIDGE,
                 addedAt = Instant.ofEpochMilli(1_700_000_000_000),
                 expiresOn = expiry,
@@ -46,10 +46,14 @@ class HubDatabaseTest {
         val stored = db.pantryDao().observe(id).first()
         assertEquals(expiry, stored?.expiresOn)
         assertEquals(PantryLocation.FRIDGE, stored?.location)
+        assertEquals("400 g", stored?.description)
 
-        db.pantryDao().markConsumed(id, Instant.now().toEpochMilli())
+        db.pantryDao().resolve(id, Instant.now().toEpochMilli(), Disposition.DISCARDED)
         assertEquals(0, db.pantryDao().observeActive().first().size)
-        // Soft delete: the row is still there.
-        assertEquals("Yogurt", db.pantryDao().observe(id).first()?.name)
+
+        // Soft delete: the row is still there, and it remembers which way it went.
+        val resolved = db.pantryDao().observe(id).first()
+        assertEquals("Yogurt", resolved?.name)
+        assertEquals(Disposition.DISCARDED, resolved?.disposition)
     }
 }

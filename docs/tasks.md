@@ -1,5 +1,11 @@
 # Hub — Phase 1 task list
 
+> **Status.** Everything from phase 0 to phase 8 is built on `feat/phase-1`, one commit per phase.
+> What is left is the part that needs a phone: 9.2 has not been done, so no instrumented test has
+> been *run* — all sixteen compile and are written against a real database, but the machine this was
+> built on has no device attached. The barcode scanner, the notification and the SAF round trip are
+> unproven until someone sideloads it. 9.4 is the owner's, and is the whole point.
+
 Everything needed to take the two phase 1 features — **Pantry** and **Today** — from the current
 scaffold to the design drawn in `design/spec.md`. Every artboard on the canvas is accounted for here.
 

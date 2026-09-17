@@ -18,7 +18,7 @@ import com.edi.hub.data.model.Trip
  */
 @Database(
     entities = [Product::class, PantryItem::class, Trip::class],
-    version = 1,
+    version = HubDatabase.VERSION,
     exportSchema = true,
 )
 @TypeConverters(Converters::class)
@@ -31,5 +31,8 @@ abstract class HubDatabase : RoomDatabase() {
 
     companion object {
         const val NAME = "hub.db"
+
+        /** Also what SQLite reports as `PRAGMA user_version`, which is how a restore spots a backup from a newer build. */
+        const val VERSION = 1
     }
 }

@@ -12,6 +12,10 @@ import java.time.LocalDate
  *
  * [expiresOn] is a `LocalDate` stored as an epoch day, never an `Instant` — an expiry is a
  * calendar date, and "expires in 2 days" must not flip across midnight, a timezone change or DST.
+ *
+ * There is no quantity and no unit. [description] is free text off the pack ("500 ml", "24 cope")
+ * that Hub never parses, converts or sums. Two boxes are two rows; the list groups them into one
+ * `×2` card at read time. See `design/spec.md` §7.1 and §7.3.
  */
 @Entity(
     tableName = "pantry_item",
@@ -32,16 +36,19 @@ import java.time.LocalDate
 )
 data class PantryItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    /** Null for unbarcoded things, such as loose vegetables. */
+    /** Null for unbarcoded things, such as loose vegetables. Null rows never group. */
     val barcode: String? = null,
     val name: String,
-    val quantity: Double,
-    val unit: PantryUnit,
+    /** Free text on the item, pre-filled from [Product] on a lookup hit. */
+    val brand: String? = null,
+    /** Free text off the pack. A label for a human, not data. */
+    val description: String? = null,
     val location: PantryLocation,
     val addedAt: Instant,
     val expiresOn: LocalDate? = null,
     val openedAt: Instant? = null,
-    /** Soft delete. Consumption history is what makes restock and spending insights possible. */
+    /** Soft delete, and now *resolved at* — [disposition] says which way it went. */
     val consumedAt: Instant? = null,
+    val disposition: Disposition? = null,
     val tripId: Long? = null,
 )

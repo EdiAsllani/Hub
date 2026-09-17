@@ -50,18 +50,18 @@ Single module, Kotlin, KSP, Gradle version catalog (`gradle/libs.versions.toml`)
 | Images | **Coil 3** + `coil-network-okhttp` | Only ever loads the Open Food Facts `imageUrl`. Never used for BLOBs. |
 | Barcode scanning | `com.google.android.gms:play-services-code-scanner` | `GmsBarcodeScanning.getClient(context).startScan()`. No camera permission, no CameraX. |
 | Background work | **WorkManager** | Daily ~08:00 summary notification. |
-| Settings (SAF tree URI, currency, last-backup time) | **`SharedPreferences`** | Three values. DataStore is a dependency and a coroutine API for no gain here. |
+| Settings (SAF tree URI, last-backup time, dynamic colour, the daily reminder) | **`SharedPreferences`** | A handful of values. DataStore is a dependency and a coroutine API for no gain here. |
 | Encryption (phase 3+) | `javax.crypto` — `PBKDF2WithHmacSHA256` (~600k iterations) + AES-GCM | No dependency. See §9 of the handover; the scheme there stands unchanged. |
 
 ### Architecture
 
-Single `Activity`, Compose-only, no fragments. Per feature: `Dao` → `Repository` → `ViewModel` exposing a `StateFlow<UiState>`. DAO queries return `Flow`, so list animations and the dashboard update themselves on write. Insight rules live in a `domain` package as plain suspend functions over a `Queries` facade — a `List<suspend (Queries) -> List<Insight>>`, exactly as sketched in the handover. Not a rules engine.
+Single `Activity`, Compose-only, no fragments. Per feature: `Dao` → `ViewModel` exposing a `StateFlow<UiState>`, with a repository in between only where there is work that is not a query — backup and restore is one, the Open Food Facts lookup is another. A class that forwards each DAO call unchanged is a layer, not an abstraction. DAO queries return `Flow`, so list animations and the dashboard update themselves on write. Insight rules live in a `domain` package as plain suspend functions over a `Queries` facade — a `List<suspend (Queries) -> List<Insight>>`, exactly as sketched in the handover. Not a rules engine.
 
 ### What the design costs the build
 
 - **The urgency ramp is a `CompositionLocal`** supplied next to `MaterialTheme`, not colours picked at each call site. Four buckets, each with a foreground, a background and an icon; `design/spec.md` §1 has the hex values for both themes. Every chip draws icon *and* text label alongside the colour.
 - **Fonts are bundled in `res/font`,** not fetched. Gabarito for display and numerals, Figtree for body. The mockups pull them from Google Fonts because they are web pages; the app is offline and must not. Material Symbols ships as a variable font too — subset it, or the APK carries a few MB of unused glyphs. **Verify at setup that the Gabarito build in use actually exposes `tnum`**; the tabular-figure requirement for every count and days-left number depends on it, and a fallback is a font swap, not a code change.
-- **The FAB menu is `FloatingActionButtonMenu`,** which is a Material 3 Expressive API — the same `@OptIn` caveat as the UI row above applies, and it is worth checking before the capture flow is designed around the morph.
+- **The FAB menu is hand-built.** `FloatingActionButtonMenu` is a Material 3 Expressive API and is **not** present in material3 1.4.0, which is the version this project can build against until `compileSdk 37` is published. The menu is a column of entries staggered in behind the FAB, and it gains nothing by waiting for the component.
 - **The ghosted navigation slot is hand-built.** `NavigationBar` has no disabled-item state, so the treatment in `design/spec.md` §2 — reduced emphasis, thinner icon stroke, dotted underline, no ripple, a snackbar, and a TalkBack announcement of "dimmed, not available yet" — is a local composable reused by the six reserved FAB entries.
 
 ### Platform details that are easy to miss
@@ -176,7 +176,7 @@ Order matters; getting it wrong corrupts the database silently. **Validate the i
 
 1. Let the user pick the file with `ACTION_OPEN_DOCUMENT` and a `*/*` filter — the MIME type reported for `.db` files is inconsistent across providers, so filtering on it hides valid backups.
 2. Copy the picked file to a temp file in `cacheDir`.
-3. Validate the temp file: read the first 16 bytes and require the literal `SQLite format 3\0` header, then open it raw and run `PRAGMA quick_check`. Abort here on any failure — nothing has been touched yet.
+3. Validate the temp file: read the first 16 bytes and require the literal `SQLite format 3\0` header, read the schema version out of bytes 60–63 of that same header and abort if it is newer than this build, then open it raw and run `PRAGMA quick_check`. Abort here on any failure — nothing has been touched yet.
 4. Cancel and await the WorkManager daily job — it holds a database connection.
 5. Close the Room instance.
 6. **Rename** the current `hub.db` to `hub.db.bak` — never delete it.
@@ -184,7 +184,7 @@ Order matters; getting it wrong corrupts the database silently. **Validate the i
 8. Delete `hub.db-wal` and `hub.db-shm`. A stale WAL replayed over a freshly restored file is the classic silent corruption.
 9. Show a "Restored — tap to restart" dialog, and call `exitProcess(0)` when it is tapped. The dialog has to come first: after the process is killed there is nobody left to prompt. Rebuilding the Hilt-provided singleton database in place is more moving parts than it is worth for an operation performed a handful of times a year.
 
-A backup taken from a **newer** schema version than the installed APK will make Room throw on open. Catch it and show a plain message ("this backup is from a newer version of Hub"), not a crash.
+A backup taken from a **newer** schema version than the installed APK would make Room throw on open — and by then the live file is already gone. The header carries that version at bytes 60–63, so it is read during validation instead, while nothing has been touched, and the restore is refused with a plain message rather than a crash.
 
 ---
 
@@ -192,7 +192,7 @@ A backup taken from a **newer** schema version than the installed APK will make 
 
 The order is unchanged from §10 of the handover; steps 1 and 5 to 9 have been rewritten to match `design/spec.md`. Phase 1 is the shell plus pantry:
 
-1. Compose shell, Material 3, `NavigationBar`, five destinations — **Today · Pantry · Deadlines · Money · Backlog** — three of them ghosted stubs, using the treatment in `design/spec.md` §2 rather than a plain empty screen. The vault lives inside Deadlines, never as its own tab. **The order of the five is unresolved** — the design brief fixes a different one; see §8.
+1. Compose shell, Material 3, `NavigationBar`, five destinations — **Pantry · Deadlines · Today · Money · Backlog** — three of them ghosted stubs, using the treatment in `design/spec.md` §2 rather than a plain empty screen. The vault lives inside Deadlines, never as its own tab. Today sits in the centre, at the thumb's home position, and is the start destination.
 2. Room with the Gradle plugin, `exportSchema = true`, entities `Product` + `PantryItem` + `Trip`.
 3. SAF folder picker, `VACUUM INTO` backup, and restore — **round-trip proven before anything else is built on top of it**.
 4. Barcode scan via `GmsBarcodeScanning`.
@@ -226,8 +226,8 @@ Later phases, in value order: Deadlines (warranty and documents first) → Money
 
 ## 8. Open items
 
-- **Navigation order.** `docs/HANDOVER.md` §10 and §6 of this plan list Today first; the design brief fixes **Pantry · Deadlines · Today · Money · Backlog** and says not to reorder, putting Today at the thumb's home position. `design/spec.md` §7 flags this rather than deciding it, because it is a documentation inconsistency and not a design question. It needs one sentence from the owner before step 1 is written; the code is a list literal either way.
 - **`Product.defaultLocation`**, learned the same way as `defaultShelfLifeDays`, would remove a tap from every rescan. `defaultUnit` is gone with the units, and `defaultDescription` has been taken. Still **the owner's call** before the schema is frozen; adding it later is a trivial migration.
 - **The run-out hold window**, and what "Not now" means. "Got it" is settled — it writes `runOutDismissedAt`. "Not now" is described as leaving the card for tomorrow, which could be a same-day hide held in memory or a second `snoozedUntil` column. The in-memory version ships nothing and is the assumption until told otherwise.
 - **Two states have no design yet** and `design/spec.md` §5 says so: a backup that fails mid-write, and a backup file from a newer schema than the installed APK. §5 of this plan says to catch the second and show a plain message; what that message looks like is undrawn.
-- Notification time (08:00 assumed) — configurable, or fixed until it annoys someone?
+- Notification time (08:00 assumed) — configurable, or fixed until it annoys someone? Fixed at 08:00 for now, with a switch in settings that turns the reminder on or off.
+- **Whether the daily reminder should default to on.** It ships **off**, because switching it on is what asks for `POST_NOTIFICATIONS`, and a permission prompt the user has no reason for yet is a prompt they decline. The cost is that a user who never opens settings never gets the nudge the dashboard depends on.
