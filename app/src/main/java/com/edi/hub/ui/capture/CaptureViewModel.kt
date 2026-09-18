@@ -125,7 +125,7 @@ class CaptureViewModel @Inject constructor(
 
     /**
      * Step 3 opens pre-filled when Hub has learned a shelf life for this product and the product is
-     * no longer on a shelf. A first scan gets the quick-picks instead, and nothing pre-filled.
+     * no longer on a shelf. A first scan opens empty, and the calendar or the field fills it in.
      */
     fun prepareDateStep(today: LocalDate = LocalDate.now()) {
         val days = draft.knownShelfLifeDays ?: return

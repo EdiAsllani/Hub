@@ -98,7 +98,7 @@ finishes there. A miss or a timeout moves on to the naming step by itself.
 | Restocking something you already have | 3 | FAB, "Scan pantry item", tap the existing card. No date step. |
 | New product, lookup hit, learned date | 4 | FAB, action, confirm name, save. Lookup auto-advances. |
 | New product, lookup miss | 4 + typing | Same count; the name step exists either way. |
-| First scan of an unknown product | 4–5 | One extra tap if a quick-pick date chip fits, two if the date is typed. |
+| First scan of an unknown product | 4–5 | One extra tap to pick the date on the calendar, or type it in the field. |
 
 The three-tap restock path is the one worth protecting in build. It is the most common scan in a
 real week and it is the shortest route in the app.
