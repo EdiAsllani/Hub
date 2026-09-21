@@ -1,7 +1,7 @@
 # Design Brief — Hub, Phase 1 (Pantry + Today)
 
 **For:** the design agent producing the visual design for this app.
-**Read first, in this order:** `HANDOVER.md` (what the app is and why), then `docs/plan.md` (the implementation decisions already locked in). This brief overrides neither — it narrows both to the slice being designed now.
+**Read first, in this order:** `HANDOVER.md` (what the app is and why), then `docs/plan.md` (the implementation decisions already locked in) and `docs/phase-1.md` (what phase 1 settled). This brief overrides neither — it narrows both to the slice being designed now.
 
 ---
 

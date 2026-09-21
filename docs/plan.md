@@ -1,37 +1,37 @@
 # Hub — Implementation Plan
 
-Companion to `docs/HANDOVER.md`. That document settles *what* the app is and *why*; this one settles *how* it gets built: stack, schema, storage mechanics, and the order of work. Where the two disagree, `docs/HANDOVER.md` wins on product decisions and this document wins on implementation detail.
+Companion to `docs/HANDOVER.md`. That document settles *what* the app is and *why*; this one settles
+*how* it gets built: stack, schema, storage mechanics, and the order of work. Where the two disagree,
+`docs/HANDOVER.md` wins on product decisions and this document wins on implementation detail.
 
-`design/spec.md` is the third document, and it outranks both on the five owner decisions recorded in its §7: no quantity tracking, count by scan, one date per scan, run-out in place of low stock, and the `disposition` column. Those points are settled, and this plan has been rewritten to match them rather than to reconcile them. The design itself lives as artboards on a Design canvas the owner holds the link to; §1 (foundations), §6 (motion) and §8 (sample data) there are the reference for anything visual, and are deliberately not restated here.
+`design/spec.md` is the third document, and it outranks both on the owner decisions recorded in its
+§7. Those points are settled, and this plan is written to match them rather than to reconcile them.
+The design itself lives as artboards on a Design canvas the owner holds the link to; §1
+(foundations), §6 (motion) and §8 (sample data) there are the reference for anything visual, and are
+deliberately not restated here.
+
+This document holds what is still binding. A phase that has been built keeps its own record —
+[`phase-1.md`](phase-1.md) is the first — and the plan and task list it was built from are in git
+history rather than in the repository.
 
 ---
 
 ## 1. Context
 
-`docs/HANDOVER.md` describes a fully offline Android app — a personal hub for things owned, owed, or tracked — built on three primitives (due-date thing, item + status + rating, money event) with a dashboard of insight cards as the product. The design is settled; the repository holds that handover document, the scaffolded Android project, and the phase 1 design under `design/`.
+`docs/HANDOVER.md` describes a fully offline Android app — a personal hub for things owned, owed, or
+tracked — built on three primitives (due-date thing, item + status + rating, money event) with a
+dashboard of insight cards as the product.
 
-This plan exists to turn that design into something buildable: it fixes the open questions from §11 of the handover, pins the technology choices, expands the data model sketch into a schema that Room will actually accept, and hardens the backup/restore path — which is the one part of the app where a mistake destroys real data rather than annoying the user.
-
-Intended outcome: a sideloadable, self-signed APK, open-sourced on GitHub, whose phase 1 (shell + pantry) is good enough to live on daily for two weeks before a second tab is written.
+Intended outcome: a sideloadable, self-signed APK, open-sourced on GitHub, whose phase 1 (shell +
+pantry) is good enough to live on daily for two weeks before a second tab is written.
 
 ---
 
-## 2. Decisions made (closes §11 of the handover)
+## 2. Decisions already made
 
-| Question | Decision |
-|---|---|
-| minSdk | **30** (Android 11). Guarantees SQLite ≥ 3.27 for `VACUUM INTO` with no bundled SQLite, and keeps the app installable for anyone who finds the repo. |
-| compileSdk / targetSdk | **36** (Android 16 — the owner's device). |
-| App name / package | **Hub** / `com.edi.hub`. |
-| Currency | **Single currency**, an app-wide setting. The `currency` column stays in the schema so multi-currency is a later migration rather than a rewrite, but no picker is ever shown. |
-| Pantry units | **Dropped entirely.** No `quantity`, no unit enum. A free-text `description` typed off the pack ("500 ml", "24 cope", "1 kg") replaces both, and Hub never parses, converts or sums it. See `design/spec.md` §7.1. |
-| Pantry counts | **Derived, never stored.** Scanning a barcode already in the pantry adds a second row; the list groups them into one `×2` card. No count column. See §4. |
-| Pantry locations | **Fixed enum**: `fridge | freezer | pantry`. |
-| Vault biometric unlock | **Deferred to phase 3+.** Master password only when the vault ships. |
-| Backup cadence | **Manual button only** for now. A scheduled export can reuse the same code path later. |
-| "Consumed" semantics | **Soft delete** — set `consumedAt`, never delete the row. Consumption history is what makes restock and spending insights possible. A `disposition` column (`CONSUMED` \| `DISCARDED`) records which of the two swipes resolved it; `consumedAt` means *resolved at*, whichever the disposition. |
-| Dependency injection | **Hilt.** |
-| Module structure | **Single `:app` module**, packaged by feature. |
+The questions §11 of the handover left open were closed during phase 1 — minSdk, currency, units,
+counts, locations, backup cadence, soft deletes, DI and module structure. They are recorded in
+[`phase-1.md`](phase-1.md) §1 and are not re-opened here.
 
 ---
 
@@ -194,26 +194,16 @@ A backup taken from a **newer** schema version than the installed APK would make
 
 ## 6. Build order
 
-The order is unchanged from §10 of the handover; steps 1 and 5 to 9 have been rewritten to match `design/spec.md`. Phase 1 is the shell plus pantry:
+Phase 1 — the shell, the pantry, capture, Today and the backup path — is built. What it was built in,
+and in what order, is in [`phase-1.md`](phase-1.md) §2.
 
-1. Compose shell, Material 3, `NavigationBar`, five destinations — **Pantry · Deadlines · Today · Money · Backlog** — three of them ghosted stubs, using the treatment in `design/spec.md` §2 rather than a plain empty screen. The vault lives inside Deadlines, never as its own tab. Today sits in the centre, at the thumb's home position, and is the start destination.
-2. Room with the Gradle plugin, `exportSchema = true`, entities `Product` + `PantryItem` + `Trip`.
-3. SAF folder picker, `VACUUM INTO` backup, and restore — **round-trip proven before anything else is built on top of it**.
-4. Barcode scan via `GmsBarcodeScanning`.
-5. The capture sequence, which branches three ways at step 1 after the scan:
-   - **Barcode already in the pantry** — show the existing card and stop. Tapping it adds a row and finishes there: no date step, three taps from the FAB, undo in the snackbar. The new row copies `barcode`, `name`, `brand`, `description` and `location` from the group it joins, and takes `expiresOn` = today + the product's `defaultShelfLifeDays`, or null where nothing has been learned yet. **This is the path worth protecting** — it is the most common scan in a real week and the shortest route in the app.
-   - **Open Food Facts hit on a new product** — the card auto-advances after 600 ms, spending no tap on confirmation.
-   - **Miss or two-second timeout** — move to step 2 by itself. Not an error state; the naming step exists on every path anyway.
-   Step 2 is the product form: name, brand and description, all free text, with the helper line that teaches what description is for. A miss caches to `Product` with `source = USER`.
-6. Learned `defaultShelfLifeDays` and `defaultDescription` written back whenever the user corrects either one. Only a correction teaches; accepting a pre-filled value writes nothing.
-7. Pantry list: location tabs with card counts, filter chips, sort by expiry, `Modifier.animateItem()`, urgency chips carrying **icon + text label + color** — never color alone. Rows are the grouped query above. Both gestures ship together — `SwipeToDismissBox` in both directions, arming at 40%, haptic on commit, four-second undo snackbar, and no confirmation dialog. There is no trailing checkbox; the swipe replaces it. A swipe on a `×n` card decrements the badge and rewrites the date in place rather than collapsing the row, and that difference is the part to get right.
-8. The FAB menu, with one live action and the six reserved entries ghosted — the same composable as step 1, not a second implementation of the idea.
-9. Today tab wired to exactly two rules: `expiringSoon` and `ranOut`. One card at a time with a counter, an expiry card taking its urgency band's colour and a run-out card taking the brand teal, and a cleared state that is a designed screen rather than an empty list.
-10. Two WorkManager jobs a day posting a summary notification, at ~08:00 and ~18:00. The dashboard is passive; without the nudge the app gets forgotten. Enqueue both with `enqueueUniquePeriodicWork(..., KEEP)` on every launch, so a job cancelled during a restore re-establishes itself on the next start. They share one notification id, so the evening summary replaces the morning one rather than stacking beneath it.
+Then install the APK and **live on it for two weeks before writing a second tab.** The largest risk
+to this project is five half-finished tabs instead of one that gets used.
 
-Then install the APK and **live on it for two weeks before writing a second tab.** The largest risk to this project is five half-finished tabs instead of one that gets used.
-
-Later phases, in value order: Deadlines (warranty and documents first) → Money and trip totals → comparative insight rules → Backlog → vault and encrypted document photos → batch scanning with CameraX → price observations.
+Later phases, in value order: Deadlines (warranty and documents first) → Money and trip totals →
+comparative insight rules → Backlog → vault and encrypted document photos → batch scanning with
+CameraX → price observations. Each is a migration on top of what exists, and nothing is scaffolded
+in advance of the phase that needs it.
 
 ---
 
@@ -221,7 +211,7 @@ Later phases, in value order: Deadlines (warranty and documents first) → Money
 
 - **Backup round-trip, instrumented test, phase 1**: insert rows → back up → wipe app data → restore → assert the rows are present. This test is the acceptance criterion for step 3 above.
 - **Restore hardening**: unit-test the header check and the `quick_check` rollback with a deliberately truncated file.
-- **Migrations**: `MigrationTestHelper` scaffolded from schema v1, with the exported schemas wired in as `androidTest` assets. Every migration adds a test.
+- **Migrations**: `MigrationTestHelper` with the exported schemas wired in as `androidTest` assets. `MigrationTest` covers 1 → 2. **Every migration adds a test** — the assertion is that rows written under the old version are still there afterwards, unchanged.
 - **The grouped pantry query**, `androidTest` against a real in-memory Room database rather than a fake — the SQL is the thing under test, so nothing about it can be mocked: two rows sharing a barcode collapse to one card carrying `MIN(expiresOn)` and a count of 2; two rows with null barcodes stay two cards; resolving the group takes the row with the earliest non-null date, and a dateless row in the group is taken last. These three assertions are what stop the count model from quietly breaking.
 - **Insight rules**: plain unit tests over a fake `Queries`. `ranOut` fires only when the product's last open row is resolved, holds for the window, and stops firing once `runOutDismissedAt` is newer than the resolution. Comparative rules must return *empty* with less than two months of data — assert that, and do not fake it with seed data.
 - **Manual, before declaring phase 1 done**: sideload the release APK, scan three real items in a shop, scan one of them twice and confirm the card reads `×2` with the sooner date, swipe it and confirm it drops to `×1` with the later one, confirm the learned shelf life pre-fills on a rescan, force-stop, restore from the SAF folder, and confirm the daily notification fires.
@@ -230,9 +220,15 @@ Later phases, in value order: Deadlines (warranty and documents first) → Money
 
 ## 8. Open items
 
-- **`Product.defaultLocation`**, learned the same way as `defaultShelfLifeDays`, would remove a tap from every rescan. `defaultUnit` is gone with the units, and `defaultDescription` has been taken. Still **the owner's call** before the schema is frozen; adding it later is a trivial migration.
-- **The run-out hold window** is still seven days and untested against real use. Settled beside it: "Not now" is now **"Snooze"**, and it writes a `snoozedUntil` epoch day — on the product for a run-out card, on the row for an expiry card. See `design/spec.md` §7.4.
-- **One state has no design yet** and `design/spec.md` §5 says so: a backup file from a newer schema than the installed APK. §5 of this plan says to catch it and show a plain message; what that message looks like is undrawn. A backup that fails mid-write no longer needs one — §5 stages the new file and swaps it in by a rename, so the previous backup survives the failure.
-- **Notification times are fixed at 08:00 and 18:00**, behind one "Allow notifications" switch. They are deliberately not the same sentence twice: the morning one is the week ahead plus what you have run out of, which is what you act on before a shop; the evening one is only what goes off today or tomorrow, which is what you act on before dinner. Identical repeats are how a notification gets muted. Whether either time should be configurable is a question for after two weeks of use, not before.
-- **The morning copy stays literal until there is more than a pantry to summarise.** A line like "your pantry and wallet need checking" is the eventual shape, and it cannot be written honestly before Deadlines and Money exist.
-- **Whether notifications should default to on.** They ship **off**, because switching them on is what asks for `POST_NOTIFICATIONS`, and a permission prompt the user has no reason for yet is a prompt they decline. The cost is that a user who never opens settings never gets the nudge the dashboard depends on.
+Decisions that are settled live in the record of the phase that settled them —
+[`phase-1.md`](phase-1.md) §3. What is left here is genuinely still open.
+
+- **The run-out hold window** is seven days and has never met real use. Two weeks of living on the
+  app is what decides whether that is too long, too short, or right.
+- **A backup file from a newer schema than the installed APK** is caught and refused, and the
+  message is written plainly in code. It has no design. `design/spec.md` §5 says so.
+- **Whether either notification time should be configurable.** They are fixed at 08:00 and 18:00.
+  This is a question for after two weeks of use, not before.
+- **The morning summary's eventual copy** — something closer to "your pantry and wallet need
+  checking" than to a list of items. It cannot be written honestly until Deadlines and Money exist,
+  so it is deferred to the phase that makes it true.

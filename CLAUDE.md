@@ -9,6 +9,7 @@ Read this file before doing anything in it.
 |---|---|
 | `docs/HANDOVER.md` | What the app is and why. Product decisions. |
 | `docs/plan.md` | How it gets built: stack, schema, storage mechanics, build order. §8 is the open-items ledger. |
+| `docs/phase-1.md` | What a built phase decided, and why. One per phase. The plan and task list it was built from live in git history, not the repo. |
 | `design/spec.md` | The phase 1 design. **Its §7 owner decisions outrank both documents above.** |
 | `README.md` | What actually exists right now. |
 
@@ -19,6 +20,11 @@ belong in the repository.
 the document that owns the subject in place. Never append a contradiction and leave the old text
 standing — a plan that argues with itself is worse than no plan. A schema change edits `docs/plan.md` §4
 and commits the regenerated `schemas/` alongside the code.
+
+**Keep them few.** When a phase is finished, its decisions go into `docs/<phase>.md` and the plan and
+task list it was built from are deleted rather than kept. Git history is the archive; the repository
+holds what still binds. Rules that outlive the phase — the stack, the schema conventions, the backup
+step order — stay in `docs/plan.md`.
 
 ## Before writing code
 

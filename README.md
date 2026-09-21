@@ -2,7 +2,7 @@
 
 A fully offline Android app for the things you own, owe, or track. No account, no backend, no login — all data lives in a single SQLite file you can copy to a PC or drop in a synced folder.
 
-Hub is built on the idea that the whole app is only three primitives: a **due-date thing**, an **item with a status and a rating**, and a **money event**. A new feature has to map onto one of those with a new filter, or it does not get built. See [`docs/HANDOVER.md`](docs/HANDOVER.md) for the reasoning and [`docs/plan.md`](docs/plan.md) for the implementation decisions.
+Hub is built on the idea that the whole app is only three primitives: a **due-date thing**, an **item with a status and a rating**, and a **money event**. A new feature has to map onto one of those with a new filter, or it does not get built. See [`docs/HANDOVER.md`](docs/HANDOVER.md) for the reasoning, [`docs/plan.md`](docs/plan.md) for the implementation decisions, and [`docs/phase-1.md`](docs/phase-1.md) for what the first phase settled and why.
 
 ## Status
 
@@ -31,24 +31,28 @@ next thing that happens, before a second tab gets written.
   waits for a tap, and that tap adds another box and finishes: three taps from the button, no date
   step. A hit on something new shows what it found and moves on by itself. A miss or a two-second
   timeout moves on too, because the naming step exists on every path.
-- **Learning** — correct the date once and Hub offers it the next time you scan the same barcode.
-  Only a correction teaches it anything; accepting what it offered writes nothing.
+- **Learning** — correct the date, the description or the shelf once, and Hub offers it the next
+  time you scan the same barcode. Only a correction teaches it anything; accepting what it offered
+  writes nothing.
 - **Item detail** — reached through a shared-element transition on the name and the urgency chip.
   It lists both entries of a `×2` under one card with the earlier one marked "goes first", and it is
   the only screen that explains the count model.
 - **Today** — one insight card at a time with a counter and a peek of the next, over two rules:
   something is about to go off, or you have finished the last of something. Clearing the queue is a
-  visible event and the empty state is a designed screen.
+  visible event and the empty state is a designed screen. Snooze puts a card down until tomorrow and
+  writes that down, so it stays down across a restart and the notifications stay quiet about it; a
+  `N snoozed · Show` row picks them back up for the rest of the day.
 - **Backup and restore** — pick a folder once through the Storage Access Framework and Hub writes
-  `hub.db` into it, overwriting in place. Restoring validates the whole file — header, schema
-  version and `PRAGMA quick_check` — before touching anything, and renames your current database
-  aside rather than deleting it.
+  `hub.db` into it. The new file is staged beside the old one and swapped in by a rename, so a write
+  that dies halfway leaves the previous backup whole. Restoring validates the whole file — header,
+  schema version and `PRAGMA quick_check` — before touching anything, and renames your current
+  database aside rather than deleting it.
 - **Two summaries a day**, at 08:00 and 18:00, off until you switch them on — which is also when
   Hub asks for permission to post them. They are not the same sentence twice: the morning one is
   the week ahead plus what you have run out of, the evening one is only what goes off today or
   tomorrow. Both stay silent on a day with nothing to say. They are the only notifications the app
   sends.
-- **Database** — Room, schema version 1, with `Product`, `PantryItem` and `Trip`. There is no
+- **Database** — Room, schema version 2, with `Product`, `PantryItem` and `Trip`. There is no
   quantity column and no unit: a free-text description typed off the pack replaces both, and Hub
   never parses, converts or sums it.
 
@@ -60,9 +64,9 @@ units.
 
 - Deadlines, Money and Backlog are ghosted tabs, and the FAB menu's six reserved entries are ghosted
   the same way. Neither is a stub screen; they are visibly not built yet.
-- Nothing has run on a real device yet. The instrumented tests compile and are written against a
-  real database, but they have not been executed, and the barcode scanner, the notification and the
-  SAF round trip need a phone to be believed.
+- The instrumented tests compile and are written against a real database, but they have not been
+  executed. The barcode scanner, the two notifications and the SAF round trip all need a phone to be
+  believed, and the staged-then-renamed backup in particular has only been reasoned about.
 
 ## Next up
 
