@@ -83,7 +83,7 @@ interface PantryDao {
      */
     @Query(
         "SELECT p.barcode AS barcode, p.name AS name, p.brand AS brand, " +
-            "MAX(i.consumedAt) AS lastResolvedAt " +
+            "p.snoozedUntil AS snoozedUntil, MAX(i.consumedAt) AS lastResolvedAt " +
             "FROM product p JOIN pantry_item i ON i.barcode = p.barcode " +
             "GROUP BY p.barcode " +
             "HAVING SUM(CASE WHEN i.consumedAt IS NULL THEN 1 ELSE 0 END) = 0 " +
@@ -122,6 +122,10 @@ interface PantryDao {
     /** Undo. Both columns go back to null on the row that was returned. */
     @Query("UPDATE pantry_item SET consumedAt = NULL, disposition = NULL WHERE id = :id")
     suspend fun unresolve(id: Long)
+
+    /** "Snooze" on an expiry card. The row is untouched otherwise: snoozing is not resolving. */
+    @Query("UPDATE pantry_item SET snoozedUntil = :untilEpochDay WHERE id = :id")
+    suspend fun snooze(id: Long, untilEpochDay: Long)
 
     /**
      * `expiresOn IS NULL, expiresOn ASC` rather than a plain `ASC`, which sorts NULL first in

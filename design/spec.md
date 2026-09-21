@@ -249,8 +249,18 @@ unmentioned, which is the exact failure the app exists to prevent.
 
 The threshold rule cannot survive the loss of quantities. Today's second live rule becomes: when the
 last entry for a product is resolved, it appears on Today as "No eggs left" and holds for a few days
-as a restock hint. "Got it" dismisses it for that product; "Not now" leaves it for tomorrow. Neither
-needs new machinery — dismissal is a timestamp.
+as a restock hint. "Got it" dismisses it for that product; "Snooze" puts it down until tomorrow.
+Dismissal is a timestamp, a snooze is a date.
+
+**A snooze is written down, not remembered.** `snoozedUntil` is an epoch day on the product for a
+run-out card and on the row for an expiry card, so a card put aside survives a restart and the daily
+nudge stays quiet about it too. Nothing clears a snooze; the date simply arrives. Snoozing resolves
+nothing — the item is still in the pantry and the product is still run out.
+
+**Snoozed is out of the way, not gone.** Today carries a `N snoozed · Show` row that puts them back
+for the rest of the day, one tap, no undoing of anything. It sits below the card stack and stays
+there when the queue empties: snoozing the last card is exactly when a way back is needed, and a
+drag gesture on a stack that no longer has a card in it has nothing to offer.
 
 No thresholds exist anywhere in the app. This closes the open item in `plan.md` §8 by removing the
 question rather than answering it.

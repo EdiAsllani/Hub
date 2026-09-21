@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.RestaurantMenu
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -46,6 +47,8 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -75,7 +78,8 @@ fun TodayScreen(
         state = viewModel.state,
         onResolve = viewModel::resolve,
         onGotIt = viewModel::gotIt,
-        onNotNow = viewModel::notNow,
+        onSnooze = { viewModel.snooze() },
+        onReveal = viewModel::revealSnoozed,
         modifier = modifier,
     )
 }
@@ -85,7 +89,8 @@ fun TodayContent(
     state: TodayUiState,
     onResolve: (PantryItem, Disposition) -> Unit,
     onGotIt: (RunOutCandidate) -> Unit,
-    onNotNow: () -> Unit,
+    onSnooze: () -> Unit,
+    onReveal: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!state.loaded) return
@@ -124,18 +129,52 @@ fun TodayContent(
                             item = insight.item,
                             today = state.today,
                             onResolve = { onResolve(insight.item, it) },
-                            onNotNow = onNotNow,
+                            onSnooze = onSnooze,
                         )
                         is Insight.RanOut -> RunOutCard(
                             candidate = insight.candidate,
                             onGotIt = { onGotIt(insight.candidate) },
-                            onNotNow = onNotNow,
+                            onSnooze = onSnooze,
                         )
                     }
                 }
                 state.next?.let { Peek(it) }
             }
         }
+        // Outside the branch above on purpose: snoozing the last card empties the queue, and a way
+        // back that disappears exactly when it is needed is not a way back. It sits under the
+        // cleared board just as readily as under a card.
+        if (state.snoozed.isNotEmpty()) SnoozedRow(state.snoozed.size, onReveal)
+    }
+}
+
+/**
+ * Snoozed cards are out of the way rather than gone, and this row is what says so. A plain,
+ * labelled affordance rather than a gesture: there is nothing on screen to teach a gesture with
+ * once the queue is empty, and an invitation nobody finds is the same as no invitation.
+ */
+@Composable
+private fun SnoozedRow(count: Int, onReveal: () -> Unit) {
+    TextButton(
+        onClick = onReveal,
+        modifier = Modifier.semantics {
+            contentDescription = if (count == 1) {
+                "Show the card you snoozed until tomorrow"
+            } else {
+                "Show the $count cards you snoozed until tomorrow"
+            }
+        },
+    ) {
+        Icon(
+            Icons.Outlined.Schedule,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = if (count == 1) "1 snoozed · Show" else "$count snoozed · Show",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(start = 8.dp),
+        )
     }
 }
 
@@ -173,7 +212,7 @@ private fun ExpiryCard(
     item: PantryItem,
     today: LocalDate,
     onResolve: (Disposition) -> Unit,
-    onNotNow: () -> Unit,
+    onSnooze: () -> Unit,
 ) {
     val style = LocalUrgencyRamp.current[urgencyOf(item.expiresOn, today)]
     HeroCard(
@@ -186,7 +225,7 @@ private fun ExpiryCard(
         secondary = "Binned" to { onResolve(Disposition.DISCARDED) },
         primaryIcon = Icons.Filled.RestaurantMenu,
         secondaryIcon = Icons.Filled.DeleteOutline,
-        onNotNow = onNotNow,
+        onSnooze = onSnooze,
     )
 }
 
@@ -195,7 +234,7 @@ private fun ExpiryCard(
  * emergency, and colouring it like one would devalue the red on the card above it.
  */
 @Composable
-private fun RunOutCard(candidate: RunOutCandidate, onGotIt: () -> Unit, onNotNow: () -> Unit) {
+private fun RunOutCard(candidate: RunOutCandidate, onGotIt: () -> Unit, onSnooze: () -> Unit) {
     HeroCard(
         background = MaterialTheme.colorScheme.primaryContainer,
         foreground = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -206,7 +245,7 @@ private fun RunOutCard(candidate: RunOutCandidate, onGotIt: () -> Unit, onNotNow
         secondary = null,
         primaryIcon = Icons.Filled.Check,
         secondaryIcon = null,
-        onNotNow = onNotNow,
+        onSnooze = onSnooze,
     )
 }
 
@@ -221,7 +260,7 @@ private fun HeroCard(
     secondary: Pair<String, () -> Unit>?,
     primaryIcon: androidx.compose.ui.graphics.vector.ImageVector,
     secondaryIcon: androidx.compose.ui.graphics.vector.ImageVector?,
-    onNotNow: () -> Unit,
+    onSnooze: () -> Unit,
 ) {
     Card(
         Modifier.fillMaxWidth(),
@@ -262,7 +301,7 @@ private fun HeroCard(
                     }
                 }
             }
-            TextButton(onClick = onNotNow) { Text("Not now", color = foreground) }
+            TextButton(onClick = onSnooze) { Text("Snooze", color = foreground) }
         }
     }
 }
@@ -404,7 +443,7 @@ private val sampleEggs = RunOutCandidate(
 
 @Composable
 private fun Board(state: TodayUiState) = HubTheme {
-    Surface { TodayContent(state, { _, _ -> }, {}, {}) }
+    Surface { TodayContent(state, { _, _ -> }, {}, {}, {}) }
 }
 
 @Preview(name = "Today, expiry card, light", showBackground = true, heightDp = 720)
@@ -425,6 +464,18 @@ private fun RunOutCardPreview() = Board(
     TodayUiState(
         queue = listOf(Insight.RanOut(sampleEggs)),
         cleared = 2,
+        loaded = true,
+        pantryEmpty = false,
+        today = TODAY,
+    ),
+)
+
+@Preview(name = "Today, one snoozed", showBackground = true, heightDp = 720)
+@Composable
+private fun SnoozedPreview() = Board(
+    TodayUiState(
+        queue = listOf(Insight.ExpiringSoon(sampleMilk)),
+        snoozed = listOf(Insight.RanOut(sampleEggs)),
         loaded = true,
         pantryEmpty = false,
         today = TODAY,

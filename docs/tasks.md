@@ -155,7 +155,7 @@ Artboard: **Item detail — two boxes, two dates**.
 | 7.3 | Unit tests for both rules over a fake `Queries`, including that `ranOut` stops firing once dismissed and fires again after a re-buy. The join in 7.2 is SQL, not rule logic, so it joins 3.2's `androidTest` rather than being faked. | `test/`, `androidTest/` | plan §7 |
 | 7.4 | One card at a time with a counter and a peek of the next. An expiry card takes its urgency band's colour; a run-out card takes the brand teal, because running out of eggs is not an emergency. | `ui/today/` | §3 |
 | 7.5 | Clearing as a visible event: the card exits, the next rises, the counter ticks. | `ui/today/` | §6 |
-| 7.6 | "Got it" writes `runOutDismissedAt`. "Not now" leaves the card for tomorrow — **assumed to be an in-memory same-day hide** until the owner says otherwise; a `snoozedUntil` column is the alternative and is listed in `docs/plan.md` §8. | `ui/today/`, `data/` | §7.4 |
+| 7.6 | "Got it" writes `runOutDismissedAt`. "Snooze" writes `snoozedUntil`, an epoch day, and a `N snoozed · Show` row puts them back for the rest of the day. | `ui/today/`, `data/` | §7.4 |
 | 7.7 | The cleared board, whose check scales in on the same spring, with two tallies beneath it so it is not a void. | `ui/today/` | §3, §5 |
 | 7.8 | First launch: the card stack drawn as three dashed slots, one primary action, and an honest line about the 08:00 nudge. | `ui/today/` | §5 |
 
@@ -192,4 +192,4 @@ No artboard. The dashboard is passive; without the nudge the app gets forgotten.
 - A backup that fails mid-write is handled rather than drawn: the new file is staged and renamed into place, so the previous one survives. The newer-schema message is written plainly in 2.4.
 - The dynamic-colour switch is undrawn and ships as a plain switch row.
 - `Product.defaultLocation` would remove a tap from every rescan. Still the owner's call; a trivial migration either way.
-- "Not now" is assumed to be an in-memory hide. See 7.6.
+- Snoozing a card is a written date rather than an in-memory hide, and it is revealed by a labelled row rather than a gesture. See 7.6.

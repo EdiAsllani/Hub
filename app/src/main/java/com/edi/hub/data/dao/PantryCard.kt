@@ -31,6 +31,8 @@ data class RunOutCandidate(
     val name: String,
     val brand: String?,
     val lastResolvedAt: java.time.Instant,
+    /** "Snooze" on the card. Null until it has been snoozed once. */
+    val snoozedUntil: LocalDate? = null,
 )
 
 /** Cards, not boxes: eggs `×2` counts once, which is what the tab is telling you. */

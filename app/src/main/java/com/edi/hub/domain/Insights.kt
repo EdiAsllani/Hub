@@ -19,14 +19,27 @@ interface Queries {
 sealed interface Insight {
     val id: String
 
+    /** The day this card comes back, or null while it has never been snoozed. */
+    val snoozedUntil: LocalDate?
+
     data class ExpiringSoon(val item: PantryItem) : Insight {
         override val id = "expiring-${item.id}"
+        override val snoozedUntil = item.snoozedUntil
     }
 
     data class RanOut(val candidate: RunOutCandidate) : Insight {
         override val id = "ranout-${candidate.barcode}"
+        override val snoozedUntil = candidate.snoozedUntil
     }
 }
+
+/**
+ * Snoozed means out of the way until the date arrives, not gone: Today can still show it on
+ * demand, and the nudge stays quiet about it. Kept here rather than in SQL so the screen and the
+ * worker cannot drift apart on what "snoozed" means.
+ */
+fun Insight.isSnoozed(today: LocalDate = LocalDate.now()): Boolean =
+    snoozedUntil?.isAfter(today) == true
 
 /** Anything already gone off, or going off inside the week. */
 const val EXPIRY_HORIZON_DAYS = 7L

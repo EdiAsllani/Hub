@@ -34,6 +34,10 @@ interface ProductDao {
         updatedAt: Long,
     )
 
+    /** "Snooze" on a run-out card, which says nothing about whether the product was re-bought. */
+    @Query("UPDATE product SET snoozedUntil = :untilEpochDay WHERE barcode = :barcode")
+    suspend fun snooze(barcode: String, untilEpochDay: Long)
+
     /** "Got it" on a run-out card. Older than the product's latest resolution means it fires again. */
     @Query("UPDATE product SET runOutDismissedAt = :dismissedAt WHERE barcode = :barcode")
     suspend fun dismissRunOut(barcode: String, dismissedAt: Long)

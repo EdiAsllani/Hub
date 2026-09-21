@@ -24,6 +24,7 @@ import com.edi.hub.data.model.PantryItem
 import com.edi.hub.domain.Insight
 import com.edi.hub.domain.Queries
 import com.edi.hub.domain.insightRules
+import com.edi.hub.domain.isSnoozed
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.time.Duration
@@ -57,7 +58,8 @@ class DailyNudgeWorker @AssistedInject constructor(
     }
 
     override suspend fun doWork(): Result {
-        val insights = insightRules.flatMap { rule -> rule(queries) }
+        // A card put aside on Today has to stay aside here too, or the button means nothing.
+        val insights = insightRules.flatMap { rule -> rule(queries) }.filterNot { it.isSnoozed() }
         // Nothing to say is a good day, and saying so anyway is how a notification gets muted.
         if (insights.isEmpty()) return Result.success()
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=

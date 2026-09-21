@@ -5,6 +5,7 @@ import com.edi.hub.data.model.PantryItem
 import com.edi.hub.data.model.PantryLocation
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -20,12 +21,13 @@ class InsightsTest {
     private val today = LocalDate.of(2026, 9, 17)
     private val now: Instant = Instant.ofEpochMilli(1_800_000_000_000)
 
-    private fun item(name: String, expiresOn: LocalDate?) = PantryItem(
+    private fun item(name: String, expiresOn: LocalDate?, snoozedUntil: LocalDate? = null) = PantryItem(
         id = name.hashCode().toLong(),
         name = name,
         location = PantryLocation.FRIDGE,
         addedAt = now,
         expiresOn = expiresOn,
+        snoozedUntil = snoozedUntil,
     )
 
     private class Fake(
@@ -87,6 +89,34 @@ class InsightsTest {
         assertEquals(1, insights.filterIsInstance<Insight.RanOut>().size)
         // Ids have to be stable and unique, since the queue is keyed on them.
         assertEquals(2, insights.map { it.id }.toSet().size)
+    }
+
+    @Test fun aSnoozedCardStaysDownUntilTheDayItIsDueBack() = runTest {
+        val fake = Fake(expiring = listOf(item("Milk", today.plusDays(1), snoozedUntil = today.plusDays(1))))
+        val insight = expiringSoon(fake, today).single()
+
+        assertTrue("snoozed until tomorrow means not today", insight.isSnoozed(today))
+        // The date arriving is the whole mechanism: nothing clears a snooze, it simply runs out.
+        assertFalse("tomorrow it is due back", insight.isSnoozed(today.plusDays(1)))
+        assertFalse(insight.isSnoozed(today.plusDays(2)))
+    }
+
+    @Test fun somethingNeverSnoozedIsNeverSnoozed() = runTest {
+        val fake = Fake(expiring = listOf(item("Milk", today.plusDays(1))))
+        assertFalse(expiringSoon(fake, today).single().isSnoozed(today))
+    }
+
+    @Test fun aRunOutCardSnoozesTheSameWay() = runTest {
+        val fake = Fake(
+            runOuts = listOf(
+                RunOutCandidate("111", "Eggs", null, now, snoozedUntil = today.plusDays(1)),
+                RunOutCandidate("222", "Flour", null, now),
+            ),
+        )
+        val (snoozed, due) = ranOut(fake, now).partition { it.isSnoozed(today) }
+
+        assertEquals(listOf("Eggs"), snoozed.map { (it as Insight.RanOut).candidate.name })
+        assertEquals(listOf("Flour"), due.map { (it as Insight.RanOut).candidate.name })
     }
 
     private companion object {

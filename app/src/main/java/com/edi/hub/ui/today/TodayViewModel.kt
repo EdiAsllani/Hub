@@ -13,6 +13,7 @@ import com.edi.hub.data.model.PantryItem
 import com.edi.hub.domain.Insight
 import com.edi.hub.domain.Queries
 import com.edi.hub.domain.insightRules
+import com.edi.hub.domain.isSnoozed
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -22,6 +23,8 @@ import javax.inject.Inject
 
 data class TodayUiState(
     val queue: List<Insight> = emptyList(),
+    /** Put aside until tomorrow, and counted so the board can offer them back. */
+    val snoozed: List<Insight> = emptyList(),
     val cleared: Int = 0,
     val loaded: Boolean = false,
     /** Whether the kitchen itself is empty, which is a different screen from an empty queue. */
@@ -52,9 +55,6 @@ class TodayViewModel @Inject constructor(
     var state by mutableStateOf(TodayUiState())
         private set
 
-    /** Hidden for the rest of today, in memory only — "Not now" means tomorrow, not never. */
-    private val notNow = mutableSetOf<String>()
-
     /**
      * Re-read on every visit. Without it, resolving something from the pantry leaves its card
      * sitting on Today: the ViewModel outlives the tab switch, so nothing else would notice.
@@ -64,14 +64,17 @@ class TodayViewModel @Inject constructor(
     // the only writes that matter happen on a different tab. Upgrade if it starts to feel stale.
     fun reload() {
         viewModelScope.launch {
-            val insights = insightRules
+            val today = LocalDate.now()
+            val (snoozed, due) = insightRules
                 .flatMap { rule -> rule(queries) }
-                .filterNot { it.id in notNow }
+                .partition { it.isSnoozed(today) }
             state = state.copy(
-                queue = insights,
+                queue = due,
+                snoozed = snoozed,
                 pantryEmpty = pantry.observeActive().first().isEmpty(),
                 cleared = 0,
                 loaded = true,
+                today = today,
             )
         }
     }
@@ -92,12 +95,29 @@ class TodayViewModel @Inject constructor(
     }
 
     /**
-     * Left for tomorrow. An in-memory hide ships nothing and is the assumption until the owner says
-     * otherwise; a `snoozedUntil` column is the alternative and is listed in `docs/plan.md` §8.
+     * Out of the way until tomorrow, written down rather than remembered: a card put aside has to
+     * stay aside across a restart, and the nudge has to stay quiet about it too. Snoozing resolves
+     * nothing — the item is still in the pantry and the product is still run out.
      */
-    fun notNow() {
-        state.current?.let { notNow += it.id }
-        clearCurrent()
+    fun snooze(today: LocalDate = LocalDate.now()) {
+        val insight = state.current ?: return
+        val until = today.plusDays(1)
+        viewModelScope.launch {
+            when (insight) {
+                is Insight.ExpiringSoon -> pantry.snooze(insight.item.id, until.toEpochDay())
+                is Insight.RanOut -> products.snooze(insight.candidate.barcode, until.toEpochDay())
+            }
+            state = state.copy(snoozed = state.snoozed + insight)
+            clearCurrent()
+        }
+    }
+
+    /**
+     * Snoozed is out of the way, not gone. One tap puts them back for the rest of today, which is
+     * what makes putting a card aside a cheap decision rather than one to think about.
+     */
+    fun revealSnoozed() {
+        state = state.copy(queue = state.queue + state.snoozed, snoozed = emptyList())
     }
 
     /**
@@ -108,5 +128,4 @@ class TodayViewModel @Inject constructor(
     private fun clearCurrent() {
         state = state.copy(queue = state.queue.drop(1), cleared = state.cleared + 1)
     }
-
 }
