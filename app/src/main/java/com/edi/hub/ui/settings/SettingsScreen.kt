@@ -42,7 +42,7 @@ private val stamp: DateTimeFormatter =
 
 /**
  * The backup slice, and the dynamic-colour switch that the fixed scheme made a setting. Nothing
- * else lives here yet — currency and the notification time arrive with the features that need them.
+ * else lives here yet — currency and the notification times arrive with the features that need them.
  */
 @Composable
 fun SettingsScreen(
@@ -51,7 +51,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
-    // Asked for here, the first time the reminder is switched on, and nowhere else.
+    // Asked for here, the first time notifications are switched on, and nowhere else.
     val askNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) viewModel.setDailyReminder(true) else viewModel.reminderDenied()
     }
@@ -131,10 +131,10 @@ fun SettingsScreen(
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
-        Text("Reminders", style = MaterialTheme.typography.titleMedium)
+        Text("Notifications", style = MaterialTheme.typography.titleMedium)
         SettingRow(
-            headline = "One summary at 08:00",
-            support = "The only notification Hub ever sends. Silent on the days when nothing needs you.",
+            headline = "Allow notifications",
+            support = "The week ahead at 08:00, what goes off tonight at 18:00. Silent on the days when nothing needs you.",
             checked = viewModel.dailyReminder,
             onCheckedChange = { wanted ->
                 when {

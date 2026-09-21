@@ -16,15 +16,18 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.edi.hub.MainActivity
 import com.edi.hub.R
 import com.edi.hub.data.dao.PantryDao
 import com.edi.hub.data.dao.RunOutCandidate
 import com.edi.hub.data.model.PantryItem
 import com.edi.hub.domain.Insight
+import com.edi.hub.domain.EXPIRY_HORIZON_DAYS
 import com.edi.hub.domain.Queries
-import com.edi.hub.domain.insightRules
+import com.edi.hub.domain.expiringSoon
 import com.edi.hub.domain.isSnoozed
+import com.edi.hub.domain.ranOut
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.time.Duration
@@ -33,14 +36,34 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZonedDateTime
 
-/** The dashboard is passive. Without one nudge a day the app gets forgotten, and that is the real risk. */
-const val DAILY_NUDGE_WORK = "daily-nudge"
+/**
+ * The dashboard is passive. Without a nudge the app gets forgotten, and that is the real risk.
+ *
+ * Two a day, and deliberately not the same sentence twice: the morning one is the week ahead plus
+ * what you have run out of, which is what you act on before a shop, and the evening one is only
+ * what goes off today or tomorrow, which is what you act on before dinner. Identical repeats are
+ * how a notification gets muted, so the horizon is what separates them.
+ */
+const val MORNING_NUDGE_WORK = "daily-nudge"
+const val EVENING_NUDGE_WORK = "evening-nudge"
 
 private const val CHANNEL_ID = "daily-summary"
+
+/** One id, so the evening summary replaces the morning one rather than stacking beneath it. */
 private const val NOTIFICATION_ID = 1
 
+private const val KEY_HORIZON_DAYS = "horizonDays"
+private const val KEY_RESTOCK = "restock"
+private const val KEY_TITLE = "title"
+
 /** Early enough to change what you eat today, late enough not to be an alarm clock. */
-private val NUDGE_AT: LocalTime = LocalTime.of(8, 0)
+private val MORNING_AT: LocalTime = LocalTime.of(8, 0)
+
+/** Late enough to be home, early enough that cooking the thing is still an option. */
+private val EVENING_AT: LocalTime = LocalTime.of(18, 0)
+
+/** What the evening nudge counts as urgent. Anything further out keeps until the morning. */
+private const val TONIGHT_HORIZON_DAYS = 1L
 
 @HiltWorker
 class DailyNudgeWorker @AssistedInject constructor(
@@ -58,8 +81,14 @@ class DailyNudgeWorker @AssistedInject constructor(
     }
 
     override suspend fun doWork(): Result {
-        // A card put aside on Today has to stay aside here too, or the button means nothing.
-        val insights = insightRules.flatMap { rule -> rule(queries) }.filterNot { it.isSnoozed() }
+        val horizon = inputData.getLong(KEY_HORIZON_DAYS, EXPIRY_HORIZON_DAYS)
+        val restock = inputData.getBoolean(KEY_RESTOCK, true)
+        val insights = buildList {
+            addAll(expiringSoon(queries, horizonDays = horizon))
+            // Running out of eggs is a shopping errand, so it keeps until the morning.
+            if (restock) addAll(ranOut(queries))
+            // A card put aside on Today has to stay aside here too, or the button means nothing.
+        }.filterNot { it.isSnoozed() }
         // Nothing to say is a good day, and saying so anyway is how a notification gets muted.
         if (insights.isEmpty()) return Result.success()
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
@@ -68,7 +97,7 @@ class DailyNudgeWorker @AssistedInject constructor(
             return Result.success()
         }
 
-        notify(summarise(insights))
+        notify(inputData.getString(KEY_TITLE) ?: "Today in Hub", summarise(insights))
         return Result.success()
     }
 
@@ -90,11 +119,11 @@ class DailyNudgeWorker @AssistedInject constructor(
         return parts.joinToString(", ").replaceFirstChar(Char::uppercase) + "."
     }
 
-    private fun notify(text: String) {
+    private fun notify(title: String, text: String) {
         val manager = NotificationManagerCompat.from(context)
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Daily summary", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "One summary a day of what needs eating. Nothing else."
+                description = "What needs eating, morning and evening. Nothing else."
             },
         )
         val open = PendingIntent.getActivity(
@@ -105,7 +134,7 @@ class DailyNudgeWorker @AssistedInject constructor(
         )
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Today in Hub")
+            .setContentTitle(title)
             .setContentText(text)
             .setContentIntent(open)
             .setAutoCancel(true)
@@ -119,20 +148,54 @@ class DailyNudgeWorker @AssistedInject constructor(
  * itself the next time Hub opens, and one that is already scheduled is left where it is rather than
  * having its next run pushed a day out every time the app starts.
  */
-fun scheduleDailyNudge(context: Context) {
-    val request = PeriodicWorkRequestBuilder<DailyNudgeWorker>(Duration.ofDays(1))
-        .setInitialDelay(untilNextNudge())
-        .build()
-    WorkManager.getInstance(context)
-        .enqueueUniquePeriodicWork(DAILY_NUDGE_WORK, ExistingPeriodicWorkPolicy.KEEP, request)
+fun scheduleNudges(context: Context) {
+    val manager = WorkManager.getInstance(context)
+    manager.enqueueUniquePeriodicWork(
+        MORNING_NUDGE_WORK,
+        ExistingPeriodicWorkPolicy.KEEP,
+        nudge(
+            at = MORNING_AT,
+            horizonDays = EXPIRY_HORIZON_DAYS,
+            restock = true,
+            title = "Today in Hub",
+        ),
+    )
+    manager.enqueueUniquePeriodicWork(
+        EVENING_NUDGE_WORK,
+        ExistingPeriodicWorkPolicy.KEEP,
+        nudge(
+            at = EVENING_AT,
+            horizonDays = TONIGHT_HORIZON_DAYS,
+            restock = false,
+            title = "Before tonight",
+        ),
+    )
 }
 
-fun cancelDailyNudge(context: Context) {
-    WorkManager.getInstance(context).cancelUniqueWork(DAILY_NUDGE_WORK)
+fun cancelNudges(context: Context) {
+    val manager = WorkManager.getInstance(context)
+    manager.cancelUniqueWork(MORNING_NUDGE_WORK)
+    manager.cancelUniqueWork(EVENING_NUDGE_WORK)
 }
 
-private fun untilNextNudge(now: ZonedDateTime = ZonedDateTime.now()): Duration {
-    val todaysNudge = now.with(NUDGE_AT)
-    val next = if (todaysNudge.isAfter(now)) todaysNudge else todaysNudge.plusDays(1)
+private fun nudge(
+    at: LocalTime,
+    horizonDays: Long,
+    restock: Boolean,
+    title: String,
+) = PeriodicWorkRequestBuilder<DailyNudgeWorker>(Duration.ofDays(1))
+    .setInitialDelay(until(at))
+    .setInputData(
+        workDataOf(
+            KEY_HORIZON_DAYS to horizonDays,
+            KEY_RESTOCK to restock,
+            KEY_TITLE to title,
+        ),
+    )
+    .build()
+
+private fun until(time: LocalTime, now: ZonedDateTime = ZonedDateTime.now()): Duration {
+    val today = now.with(time)
+    val next = if (today.isAfter(now)) today else today.plusDays(1)
     return Duration.between(now, next)
 }

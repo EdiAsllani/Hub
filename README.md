@@ -43,8 +43,11 @@ next thing that happens, before a second tab gets written.
   `hub.db` into it, overwriting in place. Restoring validates the whole file — header, schema
   version and `PRAGMA quick_check` — before touching anything, and renames your current database
   aside rather than deleting it.
-- **A daily summary at 08:00**, off until you switch it on, which is also when Hub asks for
-  permission to post it. It is the only notification the app sends.
+- **Two summaries a day**, at 08:00 and 18:00, off until you switch them on — which is also when
+  Hub asks for permission to post them. They are not the same sentence twice: the morning one is
+  the week ahead plus what you have run out of, the evening one is only what goes off today or
+  tomorrow. Both stay silent on a day with nothing to say. They are the only notifications the app
+  sends.
 - **Database** — Room, schema version 1, with `Product`, `PantryItem` and `Trip`. There is no
   quantity column and no unit: a free-text description typed off the pack replaces both, and Hub
   never parses, converts or sums it.

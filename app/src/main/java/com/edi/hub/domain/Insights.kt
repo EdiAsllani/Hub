@@ -47,8 +47,12 @@ const val EXPIRY_HORIZON_DAYS = 7L
 /** How long a finished product stays on Today as a restock hint before it stops being news. */
 const val RUN_OUT_HOLD_DAYS = 7L
 
-suspend fun expiringSoon(queries: Queries, today: LocalDate = LocalDate.now()): List<Insight> =
-    queries.expiringThrough(today.plusDays(EXPIRY_HORIZON_DAYS))
+suspend fun expiringSoon(
+    queries: Queries,
+    today: LocalDate = LocalDate.now(),
+    horizonDays: Long = EXPIRY_HORIZON_DAYS,
+): List<Insight> =
+    queries.expiringThrough(today.plusDays(horizonDays))
         .map(Insight::ExpiringSoon)
 
 suspend fun ranOut(queries: Queries, now: Instant = Instant.now()): List<Insight> =

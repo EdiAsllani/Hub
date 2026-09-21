@@ -4,7 +4,7 @@ import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.edi.hub.data.HubPrefs
-import com.edi.hub.work.scheduleDailyNudge
+import com.edi.hub.work.scheduleNudges
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -24,6 +24,6 @@ class HubApplication : Application(), Configuration.Provider {
         // On every launch, so a job cancelled during a restore re-establishes itself. Nothing to do
         // when the reminder is off: the switch cancels it, and touching WorkManager here would only
         // start it up at every cold launch for nothing.
-        if (prefs.dailyReminder) scheduleDailyNudge(this)
+        if (prefs.dailyReminder) scheduleNudges(this)
     }
 }

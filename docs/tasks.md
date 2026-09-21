@@ -168,9 +168,9 @@ Artboards: **Today — expiry card (light and dark)**, **Today — run-out card*
 
 | # | Task | Files | Spec |
 |---|---|---|---|
-| 8.1 | `@HiltWorker` daily job at ~08:00 posting a summary notification, with `HiltWorkerFactory` from the `Application` and the default `WorkManagerInitializer` removed from the manifest. | new `work/`, `HubApplication.kt`, `AndroidManifest.xml` | plan §3, §6 |
+| 8.1 | `@HiltWorker` jobs at ~08:00 and ~18:00 posting a summary notification, separated by horizon rather than by wording, with `HiltWorkerFactory` from the `Application` and the default `WorkManagerInitializer` removed from the manifest. | new `work/`, `HubApplication.kt`, `AndroidManifest.xml` | plan §3, §6 |
 | 8.2 | `enqueueUniquePeriodicWork(…, KEEP)` on every launch, so a job cancelled during a restore re-establishes itself. | `HubApplication.kt` | plan §6 |
-| 8.3 | Request `POST_NOTIFICATIONS` when the notification is first enabled, never at app start. Without it the summary is dropped silently. | `ui/` | plan §3 |
+| 8.3 | Request `POST_NOTIFICATIONS` when notifications are first enabled, never at app start. Without it both summaries are dropped silently. | `ui/` | plan §3 |
 
 No artboard. The dashboard is passive; without the nudge the app gets forgotten.
 
