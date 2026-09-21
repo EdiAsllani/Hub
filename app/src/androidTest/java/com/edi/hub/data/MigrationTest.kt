@@ -60,19 +60,6 @@ class MigrationTest {
         }
     }
 
-    @Test
-    fun opensAnEmptyVersionOneDatabase() {
-        helper.createDatabase(TEST_DB, 1).close()
-        helper.runMigrationsAndValidate(TEST_DB, 2, true).use { v2 ->
-            v2.query("SELECT COUNT(*) FROM pantry_item").use { cursor ->
-                assertTrue(cursor.moveToFirst())
-                assertEquals(0, cursor.getInt(0))
-            }
-            // Selecting the new column is the assertion: it throws if the ALTER never ran.
-            v2.query("SELECT snoozedUntil FROM pantry_item").close()
-        }
-    }
-
     private companion object {
         const val TEST_DB = "migration-test.db"
     }

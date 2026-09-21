@@ -76,7 +76,7 @@ class BackupRepository @Inject constructor(
             // Whether the last step can happen at all is decided before the first one does. A
             // provider that cannot rename would otherwise be found out after the old backup is
             // already gone, which is the failure this whole sequence exists to prevent.
-            if (!supportsRename(staging)) return@withContext overwriteInPlace(tree, temp)
+            if (!supportsRename(staging)) return@withContext BackupOutcome.Failed(NO_RENAME)
 
             if (!writeInto(staging, temp)) {
                 return@withContext BackupOutcome.Failed("Hub could not write to that folder. Choose it again.")
@@ -184,25 +184,6 @@ class BackupRepository @Inject constructor(
         false
     }
 
-    /**
-     * The fallback for a provider that cannot rename: the old behaviour, which truncates the only
-     * backup before it writes the new one. Kept because losing the ability to back up at all is
-     * worse than a window, and taken only when the check above proves the safe path is unavailable.
-     */
-    // ponytail: no second safe path for rename-less providers. The device's own storage provider
-    // supports rename, which is where a backup folder lives. Revisit if a real one turns up that
-    // does not — a timestamped filename per backup would sidestep renaming entirely.
-    private fun overwriteInPlace(tree: Uri, temp: File): BackupOutcome {
-        val target = findDocument(tree, HubDatabase.NAME)
-            ?: createDocument(tree, HubDatabase.NAME)
-            ?: return BackupOutcome.Failed("Hub could not write to that folder. Choose it again.")
-        if (!writeInto(target, temp)) {
-            return BackupOutcome.Failed("Hub could not write to that folder. Choose it again.")
-        }
-        prefs.lastBackupAt = Instant.now()
-        return BackupOutcome.Complete
-    }
-
     /** "wt" truncates. The default mode can leave the tail of a larger previous backup behind. */
     private fun writeInto(target: Uri, temp: File): Boolean {
         val stream = context.contentResolver.openOutputStream(target, "wt") ?: return false
@@ -268,6 +249,18 @@ class BackupRepository @Inject constructor(
 
         /** Where the new backup lands while the previous one is still the file on disk. */
         private const val STAGED_NAME = "${HubDatabase.NAME}.tmp"
+
+        /**
+         * Refusing is the right answer rather than falling back to overwriting in place: that path
+         * is the data-loss window this whole sequence exists to close, and taking it quietly would
+         * make the safety depend on which folder happened to be picked.
+         */
+        // ponytail: no second write path for a provider that cannot rename. Every provider that
+        // backs a real backup folder supports it. If one turns up that does not, a timestamped
+        // filename per backup sidesteps renaming entirely.
+        const val NO_RENAME =
+            "Hub cannot write a backup safely to that folder, because it does not allow " +
+                "renaming. Choose a different one."
 
         /**
          * Names the file the user has to rename by hand, because it is the only copy left and a

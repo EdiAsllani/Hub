@@ -112,7 +112,9 @@ otherwise is a counter nobody trusts twice.
 truncates it to zero before the first byte of the replacement arrives, so a dead battery or a full
 disk during the copy left nothing at all. The new file is staged as `hub.db.tmp` and swapped in by a
 rename, and whether the provider can rename is checked before anything is written rather than after.
-`plan.md` §5 carries the step order.
+A provider that cannot rename is refused outright rather than quietly handed the old path: that path
+is the window being closed, and falling back to it would make the safety depend on which folder was
+picked. `plan.md` §5 carries the step order.
 
 **Two notifications a day, at 08:00 and 18:00, behind one switch.** They are separated by horizon
 rather than by wording: the morning one is the week ahead plus what you have run out of, which is
