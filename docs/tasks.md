@@ -189,7 +189,7 @@ No artboard. The dashboard is passive; without the nudge the app gets forgotten.
 
 ## Known gaps, carried forward
 
-- A backup that fails mid-write has no design. The newer-schema message is written plainly in 2.4.
+- A backup that fails mid-write is handled rather than drawn: the new file is staged and renamed into place, so the previous one survives. The newer-schema message is written plainly in 2.4.
 - The dynamic-colour switch is undrawn and ships as a plain switch row.
 - `Product.defaultLocation` would remove a tap from every rescan. Still the owner's call; a trivial migration either way.
 - "Not now" is assumed to be an in-memory hide. See 7.6.

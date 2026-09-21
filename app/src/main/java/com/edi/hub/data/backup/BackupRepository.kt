@@ -70,15 +70,27 @@ class BackupRepository @Inject constructor(
                 return@withContext BackupOutcome.Failed("Hub produced an empty backup. Nothing was written.")
             }
 
-            val target = targetDocument(tree)
-                ?: return@withContext BackupOutcome.Failed("Hub could not write to that folder. Choose it again.")
-            // "wt" truncates. The default mode can leave the tail of a larger previous backup behind.
-            context.contentResolver.openOutputStream(target, "wt").use { out ->
-                if (out == null) {
-                    return@withContext BackupOutcome.Failed("Hub could not write to that folder. Choose it again.")
-                }
-                temp.inputStream().use { it.copyTo(out) }
+            val staging = findDocument(tree, STAGED_NAME) ?: createDocument(tree, STAGED_NAME)
+            ?: return@withContext BackupOutcome.Failed("Hub could not write to that folder. Choose it again.")
+
+            // Whether the last step can happen at all is decided before the first one does. A
+            // provider that cannot rename would otherwise be found out after the old backup is
+            // already gone, which is the failure this whole sequence exists to prevent.
+            if (!supportsRename(staging)) return@withContext overwriteInPlace(tree, temp)
+
+            if (!writeInto(staging, temp)) {
+                return@withContext BackupOutcome.Failed("Hub could not write to that folder. Choose it again.")
             }
+
+            // Only now, with a complete backup already on disk under another name, is the old one
+            // touched. Everything past this point is a metadata operation measured in milliseconds,
+            // rather than a copy that can die halfway through.
+            findDocument(tree, HubDatabase.NAME)?.let {
+                DocumentsContract.deleteDocument(context.contentResolver, it)
+            }
+            runCatching {
+                DocumentsContract.renameDocument(context.contentResolver, staging, HubDatabase.NAME)
+            }.getOrNull() ?: return@withContext BackupOutcome.Failed(STRANDED)
 
             prefs.lastBackupAt = Instant.now()
             BackupOutcome.Complete
@@ -173,13 +185,41 @@ class BackupRepository @Inject constructor(
     }
 
     /**
-     * One fixed filename, overwritten in place — kind to Drive and Syncthing versioning, and it
-     * keeps the folder from filling up. `createDocument` on a name that already exists silently
-     * produces `hub (1).db`, so the existing document is looked up first.
+     * The fallback for a provider that cannot rename: the old behaviour, which truncates the only
+     * backup before it writes the new one. Kept because losing the ability to back up at all is
+     * worse than a window, and taken only when the check above proves the safe path is unavailable.
      */
-    private fun targetDocument(tree: Uri): Uri? {
-        val treeDocumentId = DocumentsContract.getTreeDocumentId(tree)
-        val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, treeDocumentId)
+    // ponytail: no second safe path for rename-less providers. The device's own storage provider
+    // supports rename, which is where a backup folder lives. Revisit if a real one turns up that
+    // does not — a timestamped filename per backup would sidestep renaming entirely.
+    private fun overwriteInPlace(tree: Uri, temp: File): BackupOutcome {
+        val target = findDocument(tree, HubDatabase.NAME)
+            ?: createDocument(tree, HubDatabase.NAME)
+            ?: return BackupOutcome.Failed("Hub could not write to that folder. Choose it again.")
+        if (!writeInto(target, temp)) {
+            return BackupOutcome.Failed("Hub could not write to that folder. Choose it again.")
+        }
+        prefs.lastBackupAt = Instant.now()
+        return BackupOutcome.Complete
+    }
+
+    /** "wt" truncates. The default mode can leave the tail of a larger previous backup behind. */
+    private fun writeInto(target: Uri, temp: File): Boolean {
+        val stream = context.contentResolver.openOutputStream(target, "wt") ?: return false
+        stream.use { out -> temp.inputStream().use { it.copyTo(out) } }
+        return true
+    }
+
+    /**
+     * One fixed filename — kind to Drive and Syncthing versioning, and it keeps the folder from
+     * filling up. `createDocument` on a name that already exists silently produces `hub (1).db`,
+     * so an existing document is always looked up before one is made.
+     */
+    private fun findDocument(tree: Uri, name: String): Uri? {
+        val children = DocumentsContract.buildChildDocumentsUriUsingTree(
+            tree,
+            DocumentsContract.getTreeDocumentId(tree),
+        )
         context.contentResolver.query(
             children,
             arrayOf(
@@ -191,19 +231,32 @@ class BackupRepository @Inject constructor(
             null,
         )?.use { cursor ->
             while (cursor.moveToNext()) {
-                if (cursor.getString(1) == HubDatabase.NAME) {
+                if (cursor.getString(1) == name) {
                     return DocumentsContract.buildDocumentUriUsingTree(tree, cursor.getString(0))
                 }
             }
         }
-        val parent = DocumentsContract.buildDocumentUriUsingTree(tree, treeDocumentId)
-        return DocumentsContract.createDocument(
-            context.contentResolver,
-            parent,
-            "application/octet-stream",
-            HubDatabase.NAME,
-        )
+        return null
     }
+
+    private fun createDocument(tree: Uri, name: String): Uri? = DocumentsContract.createDocument(
+        context.contentResolver,
+        DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree)),
+        "application/octet-stream",
+        name,
+    )
+
+    private fun supportsRename(document: Uri): Boolean =
+        context.contentResolver.query(
+            document,
+            arrayOf(DocumentsContract.Document.COLUMN_FLAGS),
+            null,
+            null,
+            null,
+        )?.use { cursor ->
+            cursor.moveToFirst() &&
+                cursor.getInt(0) and DocumentsContract.Document.FLAG_SUPPORTS_RENAME != 0
+        } ?: false
 
     companion object {
         /**
@@ -212,6 +265,17 @@ class BackupRepository @Inject constructor(
          */
         const val NEWER_SCHEMA =
             "This backup was made by a newer version of Hub. Update Hub first, then restore it."
+
+        /** Where the new backup lands while the previous one is still the file on disk. */
+        private const val STAGED_NAME = "${HubDatabase.NAME}.tmp"
+
+        /**
+         * Names the file the user has to rename by hand, because it is the only copy left and a
+         * message that does not name it is a message they cannot act on.
+         */
+        const val STRANDED =
+            "Hub wrote the backup but could not put it in place. Your folder holds " +
+                "$STAGED_NAME — rename it to ${HubDatabase.NAME} to use it."
 
         private const val TEMP_BACKUP = "hub-backup.db"
         private const val TEMP_RESTORE = "hub-restore.db"

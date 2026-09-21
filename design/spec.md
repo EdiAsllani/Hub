@@ -160,9 +160,14 @@ paint immediately. The one real latency is the Open Food Facts lookup, and it is
 timeout, skeleton of the card that is coming, and a path onward the user never experiences as a
 failure.
 
-Still missing, and worth drawing before build: a backup that fails mid-write, and a backup file from
-a newer schema than the installed APK (`plan.md` §5 says catch it and show a plain message; that
-message has no design yet).
+A backup that fails mid-write no longer needs a screen of its own. The new file is staged beside the
+old one and swapped in by a rename, so a write that dies halfway leaves the previous backup intact
+and the snackbar carries the ordinary failure message. The one case that still speaks for itself is
+a rename the provider refuses: the message names `hub.db.tmp`, because renaming it by hand is the
+recovery. See `plan.md` §5.
+
+Still missing, and worth drawing before build: a backup file from a newer schema than the installed
+APK (`plan.md` §5 says catch it and show a plain message; that message has no design yet).
 
 ---
 
