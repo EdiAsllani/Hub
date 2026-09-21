@@ -148,8 +148,8 @@ class BackupRepository @Inject constructor(
 
     /** Everything past this point touches the live file, and every step of it is reversible until the last. */
     private fun swapIn(incoming: File): RestoreOutcome {
-        // The daily job holds a connection. There is only ever one job, so cancelling all of them
-        // is the same thing and needs no name shared across packages; KEEP re-enqueues on next launch.
+        // The nudge jobs hold a connection. Cancelling all work rather than naming each one keeps
+        // this free of a list that has already grown once; KEEP re-enqueues them on the next launch.
         WorkManager.getInstance(context).cancelAllWork().result.get()
         db.close()
 

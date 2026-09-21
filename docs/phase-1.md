@@ -101,7 +101,12 @@ product is still run out, which is the whole difference between Snooze and the b
 Snoozed is out of the way rather than gone, so the board carries a `N snoozed · Show` row. That row
 sits outside the card branch on purpose: snoozing the last card empties the queue, and that is
 exactly the moment a way back is needed. A drag gesture on the card stack was the alternative and
-cannot work there, because by then there is no card left to drag.
+cannot work there, because by then there is no card left to drag. Revealing them holds for as long
+as Hub stays open — Today re-reads its rules on every visit to the tab, so without that the cards
+would go straight back down on the walk back from the pantry.
+
+Snoozing does not count as clearing. A card put aside was not dealt with, and a counter that claims
+otherwise is a counter nobody trusts twice.
 
 **A failed backup can no longer destroy the last good one.** Opening the backup file in `"wt"`
 truncates it to zero before the first byte of the replacement arrives, so a dead battery or a full

@@ -41,7 +41,8 @@ next thing that happens, before a second tab gets written.
   something is about to go off, or you have finished the last of something. Clearing the queue is a
   visible event and the empty state is a designed screen. Snooze puts a card down until tomorrow and
   writes that down, so it stays down across a restart and the notifications stay quiet about it; a
-  `N snoozed · Show` row picks them back up for the rest of the day.
+  `N snoozed · Show` row picks them back up for as long as the app stays open. Snoozing does not
+  count towards the cleared tally, because putting a card aside is not dealing with it.
 - **Backup and restore** — pick a folder once through the Storage Access Framework and Hub writes
   `hub.db` into it. The new file is staged beside the old one and swapped in by a rename, so a write
   that dies halfway leaves the previous backup whole. Restoring validates the whole file — header,

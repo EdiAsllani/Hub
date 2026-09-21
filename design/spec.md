@@ -258,9 +258,12 @@ nudge stays quiet about it too. Nothing clears a snooze; the date simply arrives
 nothing — the item is still in the pantry and the product is still run out.
 
 **Snoozed is out of the way, not gone.** Today carries a `N snoozed · Show` row that puts them back
-for the rest of the day, one tap, no undoing of anything. It sits below the card stack and stays
-there when the queue empties: snoozing the last card is exactly when a way back is needed, and a
-drag gesture on a stack that no longer has a card in it has nothing to offer.
+for as long as Hub stays open, one tap, no undoing of anything. It sits below the card stack and
+stays there when the queue empties: snoozing the last card is exactly when a way back is needed, and
+a drag gesture on a stack that no longer has a card in it has nothing to offer.
+
+**Snoozing is not clearing.** The counter and the cleared board count what was dealt with, and a
+card put aside was not dealt with. It leaves the queue without adding to the tally.
 
 No thresholds exist anywhere in the app. This closes the open item in `plan.md` §8 by removing the
 question rather than answering it.
