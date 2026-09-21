@@ -3,6 +3,7 @@ package com.edi.hub.data.dao
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
+import com.edi.hub.data.model.PantryLocation
 import com.edi.hub.data.model.Product
 
 @Dao
@@ -22,9 +23,16 @@ interface ProductDao {
         "UPDATE product SET " +
             "defaultShelfLifeDays = COALESCE(:days, defaultShelfLifeDays), " +
             "defaultDescription = COALESCE(:description, defaultDescription), " +
+            "defaultLocation = COALESCE(:location, defaultLocation), " +
             "updatedAt = :updatedAt WHERE barcode = :barcode",
     )
-    suspend fun learn(barcode: String, days: Int?, description: String?, updatedAt: Long)
+    suspend fun learn(
+        barcode: String,
+        days: Int?,
+        description: String?,
+        location: PantryLocation?,
+        updatedAt: Long,
+    )
 
     /** "Got it" on a run-out card. Older than the product's latest resolution means it fires again. */
     @Query("UPDATE product SET runOutDismissedAt = :dismissedAt WHERE barcode = :barcode")

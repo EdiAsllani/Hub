@@ -50,5 +50,7 @@ data class PantryItem(
     /** Soft delete, and now *resolved at* — [disposition] says which way it went. */
     val consumedAt: Instant? = null,
     val disposition: Disposition? = null,
+    /** "Snooze" on a Today card: the day it comes back. A calendar date, so an epoch day. */
+    val snoozedUntil: LocalDate? = null,
     val tripId: Long? = null,
 )

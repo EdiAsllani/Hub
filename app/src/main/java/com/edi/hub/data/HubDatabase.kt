@@ -1,5 +1,6 @@
 package com.edi.hub.data
 
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
@@ -15,11 +16,16 @@ import com.edi.hub.data.model.Trip
  * DeadlinePhoto and PriceObservation arrive in later phases as migrations.
  *
  * `fallbackToDestructiveMigration` is never used here — it silently wipes real data on a bump.
+ *
+ * Version 2 adds three nullable columns and nothing else, so Room derives the `ALTER TABLE`s
+ * from the exported schemas rather than trusting SQL written by hand. A column added this way
+ * cannot lose a row; anything that could would need a migration written out in full.
  */
 @Database(
     entities = [Product::class, PantryItem::class, Trip::class],
     version = HubDatabase.VERSION,
     exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 @TypeConverters(Converters::class)
 abstract class HubDatabase : RoomDatabase() {
@@ -33,6 +39,6 @@ abstract class HubDatabase : RoomDatabase() {
         const val NAME = "hub.db"
 
         /** Also what SQLite reports as `PRAGMA user_version`, which is how a restore spots a backup from a newer build. */
-        const val VERSION = 1
+        const val VERSION = 2
     }
 }

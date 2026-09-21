@@ -52,6 +52,7 @@ data class Draft(
     /** What Hub pre-filled. Only a change from these teaches it anything. */
     val prefilledExpiresOn: LocalDate? = null,
     val prefilledDescription: String? = null,
+    val prefilledLocation: PantryLocation? = null,
     val knownShelfLifeDays: Int? = null,
 )
 
@@ -107,6 +108,8 @@ class CaptureViewModel @Inject constructor(
                 brand = brand.orEmpty(),
                 description = known?.defaultDescription.orEmpty(),
                 prefilledDescription = known?.defaultDescription,
+                location = known?.defaultLocation ?: draft.location,
+                prefilledLocation = known?.defaultLocation,
                 imageUrl = known?.imageUrl ?: remote?.imageUrl,
                 knownShelfLifeDays = known?.defaultShelfLifeDays,
             )
@@ -192,6 +195,7 @@ class CaptureViewModel @Inject constructor(
                     brand = draft.brand.trim().takeIf(String::isNotEmpty),
                     defaultShelfLifeDays = draft.expiresOn?.let { ChronoUnit.DAYS.between(today, it).toInt() },
                     defaultDescription = draft.description.trim().takeIf(String::isNotEmpty),
+                    defaultLocation = draft.location,
                     imageUrl = draft.imageUrl,
                     source = if (draft.imageUrl == null) ProductSource.USER else ProductSource.OFF,
                     updatedAt = now,
@@ -203,16 +207,18 @@ class CaptureViewModel @Inject constructor(
         val correctedDate = draft.expiresOn != null && draft.expiresOn != draft.prefilledExpiresOn
         val correctedDescription = draft.description.trim().takeIf(String::isNotEmpty)
             ?.takeIf { it != draft.prefilledDescription }
-        if (!correctedDate && correctedDescription == null) return
+        val correctedLocation = draft.location.takeIf { it != draft.prefilledLocation }
+        if (!correctedDate && correctedDescription == null && correctedLocation == null) return
 
         products.learn(
             barcode = barcode,
             days = if (correctedDate) ChronoUnit.DAYS.between(today, draft.expiresOn).toInt() else null,
             description = correctedDescription,
+            location = correctedLocation,
             updatedAt = now.toEpochMilli(),
         )
         // Only the date correction is acknowledged. Step 2 draws no callout, so a changed
-        // description has nowhere to be acknowledged and is written silently.
+        // description or shelf has nowhere to be acknowledged and is written silently.
         if (correctedDate && draft.prefilledExpiresOn != null) learnedFromCorrection = true
     }
 
