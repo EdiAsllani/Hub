@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.RestaurantMenu
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Button
@@ -55,9 +56,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.edi.hub.data.dao.RunOutCandidate
 import com.edi.hub.data.model.Disposition
+import com.edi.hub.data.model.Deadline
+import com.edi.hub.data.model.DeadlineKind
 import com.edi.hub.data.model.PantryItem
 import com.edi.hub.data.model.PantryLocation
 import com.edi.hub.domain.Insight
+import com.edi.hub.domain.deadlineUrgency
 import com.edi.hub.ui.components.UrgencyChip
 import com.edi.hub.ui.components.expiryLabel
 import com.edi.hub.ui.pantry.label
@@ -78,6 +82,7 @@ fun TodayScreen(
         state = viewModel.state,
         onResolve = viewModel::resolve,
         onGotIt = viewModel::gotIt,
+        onCompleteDeadline = viewModel::completeDeadline,
         onSnooze = { viewModel.snooze() },
         onReveal = viewModel::revealSnoozed,
         modifier = modifier,
@@ -89,6 +94,7 @@ fun TodayContent(
     state: TodayUiState,
     onResolve: (PantryItem, Disposition) -> Unit,
     onGotIt: (RunOutCandidate) -> Unit,
+    onCompleteDeadline: (Deadline) -> Unit,
     onSnooze: () -> Unit,
     onReveal: () -> Unit,
     modifier: Modifier = Modifier,
@@ -134,6 +140,12 @@ fun TodayContent(
                         is Insight.RanOut -> RunOutCard(
                             candidate = insight.candidate,
                             onGotIt = { onGotIt(insight.candidate) },
+                            onSnooze = onSnooze,
+                        )
+                        is Insight.DeadlineDue -> DeadlineCard(
+                            deadline = insight.deadline,
+                            today = state.today,
+                            onComplete = { onCompleteDeadline(insight.deadline) },
                             onSnooze = onSnooze,
                         )
                     }
@@ -250,6 +262,35 @@ private fun RunOutCard(candidate: RunOutCandidate, onGotIt: () -> Unit, onSnooze
 }
 
 @Composable
+private fun DeadlineCard(
+    deadline: Deadline,
+    today: LocalDate,
+    onComplete: () -> Unit,
+    onSnooze: () -> Unit,
+) {
+    val style = LocalUrgencyRamp.current[deadlineUrgency(deadline.kind, deadline.dueOn, today)]
+    val headline = when (deadline.kind) {
+        DeadlineKind.LENDING -> "${deadline.name} is overdue back"
+        DeadlineKind.BILL -> "${deadline.name} is due"
+        DeadlineKind.WARRANTY -> "${deadline.name} warranty is ending"
+        DeadlineKind.DOCUMENT -> "${deadline.name} needs renewing"
+        else -> deadline.name
+    }
+    HeroCard(
+        background = style.background,
+        foreground = style.foreground,
+        headline = headline,
+        support = listOfNotNull(deadline.counterparty, deadline.dueOn.toString()).joinToString(" · "),
+        chip = null,
+        primary = (if (deadline.kind == DeadlineKind.LENDING) "Mark returned" else "Complete") to onComplete,
+        secondary = null,
+        primaryIcon = Icons.Filled.EventAvailable,
+        secondaryIcon = null,
+        onSnooze = onSnooze,
+    )
+}
+
+@Composable
 private fun HeroCard(
     background: Color,
     foreground: Color,
@@ -321,6 +362,7 @@ private fun Peek(insight: Insight) {
                 is Insight.ExpiringSoon ->
                     "Next: ${insight.item.name} · ${expiryLabel(insight.item.expiresOn)}"
                 is Insight.RanOut -> "Next: no ${insight.candidate.name.lowercase()} left"
+                is Insight.DeadlineDue -> "Next: ${insight.deadline.name} · ${insight.deadline.dueOn}"
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -443,7 +485,7 @@ private val sampleEggs = RunOutCandidate(
 
 @Composable
 private fun Board(state: TodayUiState) = HubTheme {
-    Surface { TodayContent(state, { _, _ -> }, {}, {}, {}) }
+    Surface { TodayContent(state, { _, _ -> }, {}, {}, {}, {}) }
 }
 
 @Preview(name = "Today, expiry card, light", showBackground = true, heightDp = 720)

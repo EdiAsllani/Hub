@@ -18,6 +18,12 @@ import kotlinx.serialization.Serializable
 
 @Serializable object TodayRoute
 
+@Serializable object DeadlinesRoute
+
+@Serializable data class DeadlineDetailRoute(val id: Long)
+
+@Serializable data class DeadlineEditorRoute(val id: Long = 0, val kind: String? = null)
+
 @Serializable object SettingsRoute
 
 /**
@@ -50,7 +56,7 @@ enum class Destination(
     val route: Any?,
 ) {
     PANTRY("Pantry", Icons.Filled.Kitchen, Icons.Outlined.Kitchen, PantryRoute),
-    DEADLINES("Deadlines", Icons.Filled.EventAvailable, Icons.Outlined.EventAvailable, null),
+    DEADLINES("Deadlines", Icons.Filled.EventAvailable, Icons.Outlined.EventAvailable, DeadlinesRoute),
     TODAY("Today", Icons.Filled.Today, Icons.Outlined.Today, TodayRoute),
     MONEY("Money", Icons.Filled.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet, null),
     BACKLOG("Backlog", Icons.Filled.Bookmarks, Icons.Outlined.Bookmarks, null),

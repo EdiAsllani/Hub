@@ -47,7 +47,6 @@ private val RESERVED = listOf(
     ReservedAction("Add to the backlog", Icons.Outlined.Bookmarks),
     ReservedAction("Record income", Icons.Outlined.Savings),
     ReservedAction("Record a debt", Icons.Outlined.AccountBalanceWallet),
-    ReservedAction("Add a deadline", Icons.Outlined.EventAvailable),
     ReservedAction("Record an expense", Icons.AutoMirrored.Outlined.ReceiptLong),
 )
 
@@ -59,6 +58,7 @@ fun CaptureFabMenu(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onScan: () -> Unit,
+    onDeadline: () -> Unit,
     onReserved: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -87,6 +87,21 @@ fun CaptureFabMenu(
                     )
                 }
             }
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = fadeIn(tween(400)) + scaleIn(tween(400), initialScale = 0.9f),
+            exit = fadeOut(tween(200)) + scaleOut(tween(200), targetScale = 0.9f),
+        ) {
+            ExtendedFloatingActionButton(
+                onClick = {
+                    onExpandedChange(false)
+                    onDeadline()
+                },
+                icon = { Icon(Icons.Outlined.EventAvailable, contentDescription = null) },
+                text = { Text("Add a deadline") },
+            )
         }
 
         AnimatedVisibility(

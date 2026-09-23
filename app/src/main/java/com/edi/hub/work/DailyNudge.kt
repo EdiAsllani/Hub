@@ -19,6 +19,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.edi.hub.MainActivity
 import com.edi.hub.R
+import com.edi.hub.data.dao.DeadlineDao
 import com.edi.hub.data.dao.PantryDao
 import com.edi.hub.data.dao.RunOutCandidate
 import com.edi.hub.data.model.PantryItem
@@ -26,8 +27,10 @@ import com.edi.hub.domain.Insight
 import com.edi.hub.domain.EXPIRY_HORIZON_DAYS
 import com.edi.hub.domain.Queries
 import com.edi.hub.domain.expiringSoon
+import com.edi.hub.domain.deadlineInsights
 import com.edi.hub.domain.isSnoozed
 import com.edi.hub.domain.ranOut
+import com.edi.hub.domain.rankAndCap
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.time.Duration
@@ -70,6 +73,7 @@ class DailyNudgeWorker @AssistedInject constructor(
     @Assisted private val context: Context,
     @Assisted parameters: WorkerParameters,
     private val pantry: PantryDao,
+    private val deadlines: DeadlineDao,
 ) : CoroutineWorker(context, parameters) {
 
     private val queries = object : Queries {
@@ -78,17 +82,28 @@ class DailyNudgeWorker @AssistedInject constructor(
 
         override suspend fun ranOutSince(since: Instant): List<RunOutCandidate> =
             pantry.runOutCandidates(since.toEpochMilli())
+
+        override suspend fun deadlinesThrough(through: LocalDate) =
+            deadlines.dueThrough(through.toEpochDay())
     }
 
     override suspend fun doWork(): Result {
         val horizon = inputData.getLong(KEY_HORIZON_DAYS, EXPIRY_HORIZON_DAYS)
         val restock = inputData.getBoolean(KEY_RESTOCK, true)
-        val insights = buildList {
+        val insights = rankAndCap(buildList {
             addAll(expiringSoon(queries, horizonDays = horizon))
             // Running out of eggs is a shopping errand, so it keeps until the morning.
             if (restock) addAll(ranOut(queries))
+            val deadlineCards = deadlineInsights(queries)
+            addAll(if (restock) deadlineCards else deadlineCards.filter {
+                it is Insight.DeadlineDue &&
+                    it.deadline.kind in setOf(
+                        com.edi.hub.data.model.DeadlineKind.BILL,
+                        com.edi.hub.data.model.DeadlineKind.LENDING,
+                    ) && it.deadline.dueOn <= LocalDate.now().plusDays(TONIGHT_HORIZON_DAYS)
+            })
             // A card put aside on Today has to stay aside here too, or the button means nothing.
-        }.filterNot { it.isSnoozed() }
+        }.filterNot { it.isSnoozed() })
         // Nothing to say is a good day, and saying so anyway is how a notification gets muted.
         if (insights.isEmpty()) return Result.success()
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
@@ -104,6 +119,7 @@ class DailyNudgeWorker @AssistedInject constructor(
     private fun summarise(insights: List<Insight>): String {
         val expiring = insights.filterIsInstance<Insight.ExpiringSoon>()
         val ranOut = insights.filterIsInstance<Insight.RanOut>()
+        val deadlines = insights.filterIsInstance<Insight.DeadlineDue>()
         val parts = buildList {
             when (expiring.size) {
                 0 -> Unit
@@ -115,6 +131,11 @@ class DailyNudgeWorker @AssistedInject constructor(
                 1 -> add("you are out of ${ranOut.single().candidate.name.lowercase()}")
                 else -> add("you are out of ${ranOut.size} things")
             }
+            when (deadlines.size) {
+                0 -> Unit
+                1 -> add("${deadlines.single().deadline.name} is due")
+                else -> add("${deadlines.size} deadlines need attention")
+            }
         }
         return parts.joinToString(", ").replaceFirstChar(Char::uppercase) + "."
     }
@@ -123,7 +144,7 @@ class DailyNudgeWorker @AssistedInject constructor(
         val manager = NotificationManagerCompat.from(context)
         manager.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, "Daily summary", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "What needs eating, morning and evening. Nothing else."
+                description = "What needs eating or is coming due, morning and evening."
             },
         )
         val open = PendingIntent.getActivity(

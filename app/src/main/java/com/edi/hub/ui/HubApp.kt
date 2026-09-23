@@ -52,6 +52,9 @@ import com.edi.hub.ui.capture.RecentlyAddedViewModel
 import com.edi.hub.ui.components.CaptureFabMenu
 import com.edi.hub.ui.components.GhostedNavItem
 import com.edi.hub.ui.detail.ItemDetailScreen
+import com.edi.hub.ui.deadlines.DeadlineDetailScreen
+import com.edi.hub.ui.deadlines.DeadlineEditorScreen
+import com.edi.hub.ui.deadlines.DeadlinesScreen
 import com.edi.hub.ui.pantry.PantryScreen
 import com.edi.hub.ui.settings.SettingsScreen
 import com.edi.hub.ui.today.TodayScreen
@@ -75,9 +78,11 @@ fun HubApp() {
     val current = backStackEntry?.destination
     val onSettings = current?.hasRoute(SettingsRoute::class) == true
     val onDetail = current?.hasRoute(ItemDetailRoute::class) == true
+    val onDeadlineDetail = current?.hasRoute(DeadlineDetailRoute::class) == true
+    val editingDeadline = current?.hasRoute(DeadlineEditorRoute::class) == true
     // Capture is full screen: the bars would only offer ways out of a sequence that has a back button.
     val capturing = current?.hierarchy?.any { it.hasRoute(CaptureGraph::class) } == true
-    val chromeless = onSettings || capturing || onDetail
+    val chromeless = onSettings || capturing || onDetail || onDeadlineDetail || editingDeadline
 
     LaunchedEffect(armed) {
         if (armed != null) {
@@ -92,16 +97,16 @@ fun HubApp() {
         topBar = {
             if (!capturing) {
                 TopAppBar(
-                    title = { Text(if (onSettings) "Settings" else if (onDetail) "" else current.destinationLabel()) },
+                    title = { Text(if (onSettings) "Settings" else if (onDetail || onDeadlineDetail || editingDeadline) "" else current.destinationLabel()) },
                     navigationIcon = {
-                        if (onSettings || onDetail) {
+                        if (onSettings || onDetail || onDeadlineDetail || editingDeadline) {
                             IconButton(onClick = { navController.popBackStack() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                             }
                         }
                     },
                     actions = {
-                        if (!onSettings && !onDetail) {
+                        if (!onSettings && !onDetail && !onDeadlineDetail && !editingDeadline) {
                             IconButton(onClick = { navController.navigate(SettingsRoute) }) {
                                 Icon(Icons.Outlined.Settings, contentDescription = "Settings")
                             }
@@ -116,6 +121,7 @@ fun HubApp() {
                     expanded = fabExpanded,
                     onExpandedChange = { fabExpanded = it },
                     onScan = { navController.navigate(CaptureGraph) },
+                    onDeadline = { navController.navigate(DeadlineEditorRoute()) },
                     onReserved = { label ->
                         scope.launch { snackbarHostState.showSnackbar("$label is not built yet") }
                     },
@@ -168,6 +174,12 @@ fun HubApp() {
             modifier = Modifier.padding(padding),
         ) {
             composable<TodayRoute> { TodayScreen() }
+            composable<DeadlinesRoute> {
+                DeadlinesScreen(
+                    onOpen = { navController.navigate(DeadlineDetailRoute(it)) },
+                    onAdd = { navController.navigate(DeadlineEditorRoute()) },
+                )
+            }
             composable<PantryRoute> {
                 WithTransitions(this) {
                     PantryScreen(
@@ -181,6 +193,19 @@ fun HubApp() {
             // 500 ms emphasized on the name and the chip; predictive back scrubs the same transition.
             composable<ItemDetailRoute> {
                 WithTransitions(this) { ItemDetailScreen(onGone = { navController.popBackStack() }) }
+            }
+            composable<DeadlineDetailRoute> {
+                DeadlineDetailScreen(
+                    onEdit = { navController.navigate(DeadlineEditorRoute(it)) },
+                    onDone = { navController.popBackStack() },
+                )
+            }
+            composable<DeadlineEditorRoute> {
+                DeadlineEditorScreen(onSaved = { id ->
+                    navController.navigate(DeadlineDetailRoute(id)) {
+                        popUpTo<DeadlineEditorRoute> { inclusive = true }
+                    }
+                })
             }
             composable<SettingsRoute> { SettingsScreen(snackbarHostState) }
 

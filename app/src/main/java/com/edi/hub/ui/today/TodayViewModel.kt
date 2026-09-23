@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.edi.hub.data.dao.DeadlineDao
 import com.edi.hub.data.dao.PantryDao
 import com.edi.hub.data.dao.ProductDao
 import com.edi.hub.data.dao.RunOutCandidate
@@ -14,6 +15,7 @@ import com.edi.hub.domain.Insight
 import com.edi.hub.domain.Queries
 import com.edi.hub.domain.insightRules
 import com.edi.hub.domain.isSnoozed
+import com.edi.hub.domain.rankAndCap
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -42,6 +44,7 @@ data class TodayUiState(
 class TodayViewModel @Inject constructor(
     private val pantry: PantryDao,
     private val products: ProductDao,
+    private val deadlines: DeadlineDao,
 ) : ViewModel() {
 
     private val queries = object : Queries {
@@ -50,6 +53,9 @@ class TodayViewModel @Inject constructor(
 
         override suspend fun ranOutSince(since: Instant): List<RunOutCandidate> =
             pantry.runOutCandidates(since.toEpochMilli())
+
+        override suspend fun deadlinesThrough(through: LocalDate) =
+            deadlines.dueThrough(through.toEpochDay())
     }
 
     var state by mutableStateOf(TodayUiState())
@@ -72,13 +78,16 @@ class TodayViewModel @Inject constructor(
     fun reload() {
         viewModelScope.launch {
             val today = LocalDate.now()
-            val (snoozed, due) = insightRules
-                .flatMap { rule -> rule(queries) }
-                .partition { !revealed && it.isSnoozed(today) }
+            val all = insightRules.flatMap { rule -> rule(queries) }
+            val snoozed = if (revealed) emptyList() else all.filter { it.isSnoozed(today) }
+            val due = rankAndCap(
+                all.filterNot { !revealed && it.isSnoozed(today) },
+                today,
+            )
             state = state.copy(
                 queue = due,
                 snoozed = snoozed,
-                pantryEmpty = pantry.observeActive().first().isEmpty(),
+                pantryEmpty = pantry.observeActive().first().isEmpty() && deadlines.observeActive().first().isEmpty(),
                 cleared = 0,
                 loaded = true,
                 today = today,
@@ -113,6 +122,7 @@ class TodayViewModel @Inject constructor(
             when (insight) {
                 is Insight.ExpiringSoon -> pantry.snooze(insight.item.id, until.toEpochDay())
                 is Insight.RanOut -> products.snooze(insight.candidate.barcode, until.toEpochDay())
+                is Insight.DeadlineDue -> deadlines.snooze(insight.deadline.id, until.toEpochDay())
             }
             // Not clearCurrent: a card put aside was not dealt with, and counting it as cleared
             // would have the board claim credit for work that is still waiting.
@@ -127,6 +137,13 @@ class TodayViewModel @Inject constructor(
     fun revealSnoozed() {
         revealed = true
         state = state.copy(queue = state.queue + state.snoozed, snoozed = emptyList())
+    }
+
+    fun completeDeadline(deadline: com.edi.hub.data.model.Deadline) {
+        viewModelScope.launch {
+            deadlines.complete(deadline.id, LocalDate.now(), Instant.now())
+            clearCurrent()
+        }
     }
 
     /**

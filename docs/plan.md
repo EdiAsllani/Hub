@@ -108,10 +108,11 @@ A database-level constraint is cheaper and more reliable than the equivalent app
 | Phase | Tables |
 |---|---|
 | 1 | `Product`, `PantryItem`, `Trip` |
-| 2 | `Deadline`, `MoneyEvent` |
-| 3 | `BacklogItem` |
-| 4 | `Secret`, `DeadlinePhoto` |
-| 5 | `PriceObservation` |
+| 2 | `Deadline` |
+| 3 | `MoneyEvent` |
+| 4 | `BacklogItem` |
+| 5 | `Secret`, `DeadlinePhoto` |
+| 6 | `PriceObservation` |
 
 Field definitions come from §7 of the handover, with the following delta, which is not optional — the handover's `PantryItem` predates the owner decisions in `design/spec.md` §7.
 
@@ -124,12 +125,16 @@ Field definitions come from §7 of the handover, with the following delta, which
 | `PantryItem` | `location` becomes **non-null** `PantryLocation` |
 | `Product` | add `defaultDescription: String?`, learned exactly as `defaultShelfLifeDays` is |
 | `Product` | add `runOutDismissedAt: Instant?` — backs the run-out rule's "Got it", see below |
+| `Deadline` | add `snoozedUntil: LocalDate?` — Today snooze persists across restarts and notifications |
 
-Three clarifications:
+Four clarifications:
 
 - `PantryItem.location` becomes an enum **and loses its nullability**. The pantry is location tabs now, so an item with no location has nowhere to appear; the capture flow always sets one. Name it **`PantryLocation`** — a bare `Location` invites confusion with `android.location.Location`. The parallel `PantryUnit` is never created, and the note about it shadowing `kotlin.Unit` is moot.
 - `consumedAt` keeps its name but now means *resolved at*, whichever way the item went; `disposition` says which. Undo on either swipe nulls both columns on the row it returned.
 - `DeadlinePhoto.bytes` and `Secret.ciphertext` are both AES-GCM ciphertext with the 12-byte nonce prefixed. One helper, one format, no separate nonce column.
+- `Deadline.dueOn` is the expected return date for `LENDING`, not a loan-start date. Its Today rule fires when that date is overdue and never claims how long the other person has held the item.
+
+Recurring deadlines keep one row. Completing one advances `dueOn` by whole `repeatDays` intervals to the first scheduled occurrence after today and clears its snooze. Completing a one-shot sets `completedAt`. This preserves cadence without inventing occurrence history the schema cannot represent.
 
 ### The pantry list query
 
@@ -211,7 +216,7 @@ in advance of the phase that needs it.
 
 - **Backup round-trip, instrumented test, phase 1**: insert rows → back up → wipe app data → restore → assert the rows are present. This test is the acceptance criterion for step 3 above.
 - **Restore hardening**: unit-test the header check and the `quick_check` rollback with a deliberately truncated file.
-- **Migrations**: `MigrationTestHelper` with the exported schemas wired in as `androidTest` assets. `MigrationTest` covers 1 → 2. **Every migration adds a test** — the assertion is that rows written under the old version are still there afterwards, unchanged.
+- **Migrations**: `MigrationTestHelper` with the exported schemas wired in as `androidTest` assets. `MigrationTest` covers 1 → 2 and 2 → 3. **Every migration adds a test** — the assertion is that rows written under the old version are still there afterwards, unchanged.
 - **The grouped pantry query**, `androidTest` against a real in-memory Room database rather than a fake — the SQL is the thing under test, so nothing about it can be mocked: two rows sharing a barcode collapse to one card carrying `MIN(expiresOn)` and a count of 2; two rows with null barcodes stay two cards; resolving the group takes the row with the earliest non-null date, and a dateless row in the group is taken last. These three assertions are what stop the count model from quietly breaking.
 - **Insight rules**: plain unit tests over a fake `Queries`. `ranOut` fires only when the product's last open row is resolved, holds for the window, and stops firing once `runOutDismissedAt` is newer than the resolution. Comparative rules must return *empty* with less than two months of data — assert that, and do not fake it with seed data.
 - **Manual, before declaring phase 1 done**: sideload the release APK, scan three real items in a shop, scan one of them twice and confirm the card reads `×2` with the sooner date, swipe it and confirm it drops to `×1` with the later one, confirm the learned shelf life pre-fills on a rescan, force-stop, restore from the SAF folder, and confirm the daily notification fires.
@@ -229,6 +234,5 @@ Decisions that are settled live in the record of the phase that settled them —
   message is written plainly in code. It has no design. `design/spec.md` §5 says so.
 - **Whether either notification time should be configurable.** They are fixed at 08:00 and 18:00.
   This is a question for after two weeks of use, not before.
-- **The morning summary's eventual copy** — something closer to "your pantry and wallet need
-  checking" than to a list of items. It cannot be written honestly until Deadlines and Money exist,
-  so it is deferred to the phase that makes it true.
+- **The morning summary's eventual copy** — it now covers the pantry and deadlines. Money can join
+  the same ranked summary when that table exists.

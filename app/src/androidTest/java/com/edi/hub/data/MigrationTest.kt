@@ -60,7 +60,38 @@ class MigrationTest {
         }
     }
 
+    @Test
+    fun addsDeadlineWithoutChangingVersionTwoRows() {
+        helper.createDatabase(DEADLINE_TEST_DB, 2).use { v2 ->
+            v2.execSQL(
+                "INSERT INTO product (barcode, name, source, updatedAt) " +
+                    "VALUES ('111', 'Milk', 'USER', 1758000000000)",
+            )
+        }
+
+        helper.runMigrationsAndValidate(DEADLINE_TEST_DB, 3, true).use { v3 ->
+            v3.query("SELECT name FROM product WHERE barcode = '111'").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("Milk", cursor.getString(0))
+            }
+            v3.execSQL(
+                "INSERT INTO deadline " +
+                    "(kind, name, dueOn, repeatDays, counterparty, costMinor, note, completedAt, snoozedUntil) " +
+                    "VALUES ('LENDING', 'Drill', 21000, 30, 'Ardit', 1299, 'Return it', NULL, 21001)",
+            )
+            v3.query("SELECT kind, dueOn, counterparty, costMinor, snoozedUntil FROM deadline").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("LENDING", cursor.getString(0))
+                assertEquals(21000L, cursor.getLong(1))
+                assertEquals("Ardit", cursor.getString(2))
+                assertEquals(1299L, cursor.getLong(3))
+                assertEquals(21001L, cursor.getLong(4))
+            }
+        }
+    }
+
     private companion object {
         const val TEST_DB = "migration-test.db"
+        const val DEADLINE_TEST_DB = "deadline-migration-test.db"
     }
 }

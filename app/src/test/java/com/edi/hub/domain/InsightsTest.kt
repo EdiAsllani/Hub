@@ -1,6 +1,8 @@
 package com.edi.hub.domain
 
 import com.edi.hub.data.dao.RunOutCandidate
+import com.edi.hub.data.model.Deadline
+import com.edi.hub.data.model.DeadlineKind
 import com.edi.hub.data.model.PantryItem
 import com.edi.hub.data.model.PantryLocation
 import kotlinx.coroutines.test.runTest
@@ -33,6 +35,7 @@ class InsightsTest {
     private class Fake(
         val expiring: List<PantryItem> = emptyList(),
         val runOuts: List<RunOutCandidate> = emptyList(),
+        val deadlines: List<Deadline> = emptyList(),
     ) : Queries {
         var askedThrough: LocalDate? = null
         var askedSince: Instant? = null
@@ -46,6 +49,9 @@ class InsightsTest {
             askedSince = since
             return runOuts.filter { !it.lastResolvedAt.isBefore(since) }
         }
+
+        override suspend fun deadlinesThrough(through: LocalDate): List<Deadline> =
+            deadlines.filter { it.dueOn <= through && it.completedAt == null }
     }
 
     @Test fun expiringSoonAsksForTheWeekAhead() = runTest {
@@ -117,6 +123,34 @@ class InsightsTest {
 
         assertEquals(listOf("Eggs"), snoozed.map { (it as Insight.RanOut).candidate.name })
         assertEquals(listOf("Flour"), due.map { (it as Insight.RanOut).candidate.name })
+    }
+
+    @Test fun deadlineRulesUseKindHorizonsAndOverdueReturnSemantics() = runTest {
+        val fake = Fake(deadlines = listOf(
+            Deadline(id = 1, kind = DeadlineKind.WARRANTY, name = "Laptop", dueOn = today.plusDays(30)),
+            Deadline(id = 2, kind = DeadlineKind.DOCUMENT, name = "Passport", dueOn = today.plusDays(90)),
+            Deadline(id = 3, kind = DeadlineKind.BILL, name = "Power", dueOn = today.plusDays(7)),
+            Deadline(id = 4, kind = DeadlineKind.LENDING, name = "Drill", dueOn = today.minusDays(1), counterparty = "Ardit"),
+            Deadline(id = 5, kind = DeadlineKind.LENDING, name = "Book", dueOn = today.minusDays(1)),
+        ))
+
+        assertEquals(
+            listOf("Laptop", "Passport", "Power", "Drill"),
+            deadlineInsights(fake, today).map { (it as Insight.DeadlineDue).deadline.name },
+        )
+    }
+
+    @Test fun rankingCapsTheQueueAtEightAndPutsOverdueFirst() {
+        val cards = (1L..10L).map { id ->
+            Insight.DeadlineDue(
+                Deadline(id = id, kind = DeadlineKind.BILL, name = "Bill $id", dueOn = today.plusDays(id)),
+            )
+        } + Insight.DeadlineDue(
+            Deadline(id = 99, kind = DeadlineKind.BILL, name = "Late", dueOn = today.minusDays(1)),
+        )
+        val ranked = rankAndCap(cards, today)
+        assertEquals(8, ranked.size)
+        assertEquals("Late", (ranked.first() as Insight.DeadlineDue).deadline.name)
     }
 
     private companion object {

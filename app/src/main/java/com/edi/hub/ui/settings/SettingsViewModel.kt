@@ -40,6 +40,8 @@ class SettingsViewModel @Inject constructor(
     val folder: Uri? get() = backups.folder
     val lastBackupAt: Instant? get() = backups.lastBackupAt
     val dynamicColor: Boolean get() = prefs.dynamicColor
+    var currencyCode by mutableStateOf(prefs.currencyCode)
+        private set
 
     var busy by mutableStateOf(false)
         private set
@@ -56,6 +58,11 @@ class SettingsViewModel @Inject constructor(
 
     fun setDynamicColor(enabled: Boolean) {
         prefs.dynamicColor = enabled
+    }
+
+    fun onCurrencyCodeChanged(value: String) {
+        currencyCode = value.filter(Char::isLetter).take(3).uppercase()
+        if (currencyCode.length == 3) prefs.currencyCode = currencyCode
     }
 
     val dailyReminder: Boolean get() = prefs.dailyReminder

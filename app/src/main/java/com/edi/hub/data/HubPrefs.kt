@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import android.net.Uri
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.edit
+import com.edi.hub.domain.defaultCurrencyCode
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -61,10 +62,23 @@ class HubPrefs @Inject constructor(private val prefs: SharedPreferences) {
             prefs.edit { putBoolean(KEY_DAILY_REMINDER, value) }
         }
 
+    private val currencyCodeState = mutableStateOf(
+        prefs.getString(KEY_CURRENCY_CODE, null) ?: defaultCurrencyCode(),
+    )
+
+    /** One app-wide currency. Deadline rows store minor units and never carry their own picker. */
+    var currencyCode: String
+        get() = currencyCodeState.value
+        set(value) {
+            currencyCodeState.value = value.uppercase()
+            prefs.edit { putString(KEY_CURRENCY_CODE, currencyCodeState.value) }
+        }
+
     private companion object {
         const val KEY_DYNAMIC_COLOR = "dynamic_color"
         const val KEY_BACKUP_FOLDER = "backup_folder"
         const val KEY_LAST_BACKUP_AT = "last_backup_at"
         const val KEY_DAILY_REMINDER = "daily_reminder"
+        const val KEY_CURRENCY_CODE = "currency_code"
     }
 }

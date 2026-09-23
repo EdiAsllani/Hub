@@ -11,3 +11,6 @@ enum class PantryLocation { FRIDGE, FREEZER, PANTRY }
  * data cannot be reconstructed after the fact — see `design/spec.md` §7.5.
  */
 enum class Disposition { CONSUMED, DISCARDED }
+
+/** All deadline features are filters over the same due-date primitive. */
+enum class DeadlineKind { WARRANTY, DOCUMENT, UPKEEP, BILL, VEHICLE, LENDING }

@@ -2,20 +2,18 @@
 
 A fully offline Android app for the things you own, owe, or track. No account, no backend, no login — all data lives in a single SQLite file you can copy to a PC or drop in a synced folder.
 
-Hub is built on the idea that the whole app is only three primitives: a **due-date thing**, an **item with a status and a rating**, and a **money event**. A new feature has to map onto one of those with a new filter, or it does not get built. See [`docs/HANDOVER.md`](docs/HANDOVER.md) for the reasoning, [`docs/plan.md`](docs/plan.md) for the implementation decisions, and [`docs/phase-1.md`](docs/phase-1.md) for what the first phase settled and why.
+Hub is built on the idea that the whole app is only three primitives: a **due-date thing**, an **item with a status and a rating**, and a **money event**. A new feature has to map onto one of those with a new filter, or it does not get built. See [`docs/HANDOVER.md`](docs/HANDOVER.md) for the reasoning, [`docs/plan.md`](docs/plan.md) for the implementation decisions, and [`docs/phase-1.md`](docs/phase-1.md) for the pantry foundation, and [`docs/phase-2.md`](docs/phase-2.md) for Deadlines.
 
 ## Status
 
-**Phase 1 is written and not yet lived on.** The pantry, the capture flow, the Today dashboard and
-the backup and restore path are all in place and the release APK builds. None of it has run on a
-real phone yet — see *What is not there* below. Sideloading it and using it for two weeks is the
-next thing that happens, before a second tab gets written.
+**Phase 2 is written, but the app has not yet been lived on.** Pantry, Deadlines, Today, backup and
+restore all build; device-only behaviour still needs a real phone — see *What is not there* below.
 
 ### What exists today
 
 - **App shell** — Compose, Material 3, edge-to-edge, predictive back. Five destinations in a fixed
   order: `Pantry · Deadlines · Today · Money · Backlog`, with Today centred and the start
-  destination. The three that are not built are visible but ghosted: 38% emphasis, a thinner icon
+  destination. The two that are not built are visible but ghosted: 38% emphasis, a thinner icon
   and a dotted underline where a live tab would grow an indicator. Tapping one answers with a
   snackbar, and TalkBack reads it as dimmed rather than skipping it.
 - **The look** — a fixed Material 3 scheme seeded from a deep teal, with a plum tertiary reserved for
@@ -37,12 +35,19 @@ next thing that happens, before a second tab gets written.
 - **Item detail** — reached through a shared-element transition on the name and the urgency chip.
   It lists both entries of a `×2` under one card with the earlier one marked "goes first", and it is
   the only screen that explains the count model.
-- **Today** — one insight card at a time with a counter and a peek of the next, over two rules:
-  something is about to go off, or you have finished the last of something. Clearing the queue is a
+- **Today** — one insight card at a time with a counter and a peek of the next, covering food expiry,
+  run-out, warranties, documents, bills and overdue lending. Clearing the queue is a
   visible event and the empty state is a designed screen. Snooze puts a card down until tomorrow and
   writes that down, so it stays down across a restart and the notifications stay quiet about it; a
   `N snoozed · Show` row picks them back up for as long as the app stays open. Snoozing does not
   count towards the cleared tally, because putting a card aside is not dealing with it.
+- **Deadlines** — warranties, documents, upkeep, bills, vehicles and lending share one active list,
+  one editor and one detail/completion flow. Filters and urgency thresholds vary by kind; recurring
+  rows roll to their next scheduled date, while one-shots complete. Lending dates mean “expected
+  back”, and costs use one app-wide currency stored as exact minor units.
+- **Deadline insights** — warranties, documents and bills join Today inside their documented
+  horizons; lending appears only once its expected-return date is overdue. All insight families use
+  one severity/date ranking, an eight-card cap and the same persistent Snooze behaviour.
 - **Backup and restore** — pick a folder once through the Storage Access Framework and Hub writes
   `hub.db` into it. The new file is staged beside the old one and swapped in by a rename, so a write
   that dies halfway leaves the previous backup whole. Restoring validates the whole file — header,
@@ -50,10 +55,10 @@ next thing that happens, before a second tab gets written.
   database aside rather than deleting it.
 - **Two summaries a day**, at 08:00 and 18:00, off until you switch them on — which is also when
   Hub asks for permission to post them. They are not the same sentence twice: the morning one is
-  the week ahead plus what you have run out of, the evening one is only what goes off today or
-  tomorrow. Both stay silent on a day with nothing to say. They are the only notifications the app
+  the week ahead plus what you have run out of and what is coming due; the evening one is only what
+  needs attention today or tomorrow. Both stay silent on a day with nothing to say. They are the only notifications the app
   sends.
-- **Database** — Room, schema version 2, with `Product`, `PantryItem` and `Trip`. There is no
+- **Database** — Room, schema version 3, with `Product`, `PantryItem`, `Trip` and `Deadline`. There is no
   quantity column and no unit: a free-text description typed off the pack replaces both, and Hub
   never parses, converts or sums it.
 
@@ -63,8 +68,7 @@ units.
 
 ### What is not there
 
-- Deadlines, Money and Backlog are ghosted tabs, and the FAB menu's six reserved entries are ghosted
-  the same way. Neither is a stub screen; they are visibly not built yet.
+- Money and Backlog are ghosted tabs. The Deadline tab and “Add a deadline” FAB action are live.
 - The instrumented tests compile and are written against a real database, but they have not been
   executed. The barcode scanner, the two notifications and the SAF round trip all need a phone to be
   believed, and the staged-then-renamed backup in particular has only been reasoned about.
@@ -75,12 +79,11 @@ In value order. Each one is a schema migration on top of what exists now — not
 
 1. **Live on it for two weeks.** The largest risk to this project is five half-finished tabs instead
    of one that gets used, so the next thing is not a feature.
-2. **Deadlines** — warranties, documents, upkeep, bills, vehicles and lent items, all one table with a `kind` and an optional repeat interval.
-3. **Money** — expenses, income and debts, plus per-trip receipt totals.
-4. **Comparative insights** — spending deltas and savings trends. These stay silent until there are two months of data, which is correct, not a bug.
-5. **Backlog** — books, films, shows, games and places, with a status and a rating.
-6. **Vault** — low-stakes secrets and encrypted document photos, AES-GCM under a key derived from a master password.
-7. **Later** — batch scanning with CameraX, opportunistic price observations.
+2. **Money** — expenses, income and debts, plus per-trip receipt totals.
+3. **Comparative insights** — spending deltas and savings trends. These stay silent until there are two months of data, which is correct, not a bug.
+4. **Backlog** — books, films, shows, games and places, with a status and a rating.
+5. **Vault** — low-stakes secrets and encrypted document photos, AES-GCM under a key derived from a master password.
+6. **Later** — batch scanning with CameraX, opportunistic price observations.
 
 ## Installation
 

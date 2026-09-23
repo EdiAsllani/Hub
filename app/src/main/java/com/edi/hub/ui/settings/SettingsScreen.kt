@@ -18,6 +18,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -145,6 +146,17 @@ fun SettingsScreen(
                     else -> askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
                 }
             },
+        )
+
+        HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+        Text("Currency", style = MaterialTheme.typography.titleMedium)
+        OutlinedTextField(
+            value = viewModel.currencyCode,
+            onValueChange = viewModel::onCurrencyCodeChanged,
+            label = { Text("ISO currency code") },
+            supportingText = { Text("Used for every deadline cost; rows store exact minor units.") },
+            singleLine = true,
         )
 
         HorizontalDivider(Modifier.padding(vertical = 8.dp))
